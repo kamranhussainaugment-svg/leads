@@ -247,17 +247,7 @@ settingsForm.addEventListener('submit', (e) => {
 searchInput.addEventListener('input', () => renderLeads());
 statusFilter.addEventListener('change', () => renderLeads());
 
-// Tag Input Logic
-socialsContainer.addEventListener('click', (e) => {
-    const niche = document.getElementById('scrapeNiche').value;
-    const city = document.getElementById('scrapeCity').value;
-    const country = document.getElementById('scrapeCountry').value;
-    const pages = document.getElementById('scrapePages').value;
 
-    if (!niche || !country) {
-        alert("Please enter at least a Niche and Country.");
-        return;
-    }
 
     // UI Feedback
     const originalText = startScrapeBtn.innerHTML;
@@ -302,27 +292,7 @@ socialsContainer.addEventListener('click', (e) => {
     }
 }
 
-function renderScraperResults() {
-    scraperList.innerHTML = '';
-    scrapedLeads.forEach((lead, index) => {
-        const tr = document.createElement('tr');
-        
-        // Check if email already exists in our main leads DB
-        const exists = leads.some(l => l.email.toLowerCase() === lead.email.toLowerCase());
-        const disabledAttr = exists ? 'disabled checked title="Already in database"' : '';
-        const opacity = exists ? 'style="opacity: 0.5"' : '';
 
-        tr.innerHTML = `
-            <td><input type="checkbox" class="scrape-checkbox" data-index="${index}" ${disabledAttr} onchange="updateImportButton()"></td>
-            <td ${opacity}>${lead.name}</td>
-            <td ${opacity}>${lead.email} ${exists ? '<span class="badge badge-agency">Existing</span>' : ''}</td>
-            <td ${opacity}>${lead.company}</td>
-            <td ${opacity}>${lead.city ? lead.city + ', ' : ''}${lead.country}</td>
-        `;
-        scraperList.appendChild(tr);
-    });
-    updateImportButton();
-}
 
 async function importSelectedLeads() {
     const checkboxes = document.querySelectorAll('.scrape-checkbox:checked:not([disabled])');
