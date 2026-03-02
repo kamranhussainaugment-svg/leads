@@ -1,3 +1,42 @@
+import { createClient } from "https://esm.sh/@libsql/client/web";
+
+// Turso Configuration
+const TURSO_URL = 'https://leads-kamranhussainaugment.aws-ap-south-1.turso.io';
+const TURSO_AUTH_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzI0NTM2MzMsImlkIjoiMDE5Y2FlNzctY2YwMS03ZTUyLTk3NDEtMzQ0NzBlMTk1YzE5IiwicmlkIjoiYTZkZmE4MDItZmNhMS00ZjQ5LTk3OGEtNTViMzkzNDUxZmYwIn0.mW_HHaGu6BAwtJI76l4YRO97-zUOH_B6zyR1CM4iVVglIndpzasviLKoDL8QXlgxkdT-saNZw3JmNwMMacVqDQ';
+
+const db = createClient({
+    url: TURSO_URL,
+    authToken: TURSO_AUTH_TOKEN
+});
+
+// Initialize DB
+async function initDB() {
+    try {
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS leads (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                email TEXT,
+                phone TEXT,
+                website TEXT,
+                company TEXT,
+                socials TEXT,
+                nature TEXT,
+                work_nature TEXT,
+                status TEXT,
+                next_follow_up TEXT,
+                notes TEXT,
+                created_at TEXT
+            )
+        `);
+        console.log("Database initialized");
+        renderLeads(); // Load data after DB is ready
+    } catch (error) {
+        console.error("DB Init Error:", error);
+        alert("Failed to connect to database. Check console.");
+    }
+}
+
 // DOM Elements
 const leadForm = document.getElementById('leadForm');
 const modal = document.getElementById('leadModal');
@@ -41,7 +80,7 @@ const activeLeadsEl = document.getElementById('activeLeads');
 const closedWonEl = document.getElementById('closedWon');
 
 // State
-let leads = JSON.parse(localStorage.getItem('leads')) || [];
+let leads = []; // Will be populated from DB
 let campaigns = JSON.parse(localStorage.getItem('campaigns')) || [];
 let smtpSettings = JSON.parse(localStorage.getItem('smtpSettings')) || {};
 let isEditing = false;
@@ -49,25 +88,8 @@ let currentViewLeadId = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    // Migration for old data
-    leads = leads.map(lead => ({
-        ...lead,
-        status: lead.status || 'New',
-        nextFollowUp: lead.nextFollowUp || '',
-        notes: lead.notes || []
-    }));
-    
-    // Load Settings
-    if (smtpSettings.smtpUser) {
-        document.getElementById('smtpHost').value = smtpSettings.smtpHost || 'smtp-relay.brevo.com';
-        document.getElementById('smtpUser').value = smtpSettings.smtpUser;
-        document.getElementById('smtpPass').value = smtpSettings.smtpPass;
-        document.getElementById('senderName').value = smtpSettings.senderName || '';
-    }
-
-    renderLeads();
+    initDB(); // Initialize DB and load leads/settings
     renderCampaigns();
-    updateStats();
 });
 
 // Event Listeners
@@ -123,7 +145,7 @@ addNoteBtn.addEventListener('click', () => {
 
 targetAudience.addEventListener('change', updateRecipientCount);
 
-// Navigation Function
+// Navigation Function (Exposed to window)
 window.switchView = function(viewName) {
     // Update menu active state
     document.querySelectorAll('.sidebar nav li').forEach(li => li.classList.remove('active'));
@@ -134,6 +156,14 @@ window.switchView = function(viewName) {
         views[key].style.display = key === viewName ? 'block' : 'none';
     });
 }
+
+// Expose other functions needed by HTML inline handlers if any
+// (Most are now event listeners, but keeping these just in case)
+window.editLead = editLead;
+window.deleteLead = deleteLead;
+window.viewLead = viewLead;
+window.deleteCampaign = deleteCampaign;
+
 
 // Campaign Functions
 function openCampaignModal() {
@@ -278,7 +308,7 @@ function renderCampaigns() {
     });
 }
 
-window.deleteCampaign = function(id) {
+function deleteCampaign(id) {
     if (confirm('Delete this campaign record?')) {
         campaigns = campaigns.filter(c => c.id !== id);
         localStorage.setItem('campaigns', JSON.stringify(campaigns));
@@ -286,18 +316,65 @@ window.deleteCampaign = function(id) {
     }
 }
 
-function saveSettings() {
-    smtpSettings = {
+async function loadSettings() {
+    try {
+        const rs = await db.execute("SELECT * FROM settings WHERE id = 'default'");
+        if (rs.rows.length > 0) {
+            const row = rs.rows[0];
+            smtpSettings = {
+                smtpHost: row.smtp_host,
+                smtpUser: row.smtp_user,
+                smtpPass: row.smtp_pass,
+                senderName: row.sender_name
+            };
+            
+            // Update UI if elements exist
+            if (document.getElementById('smtpUser')) {
+                document.getElementById('smtpHost').value = smtpSettings.smtpHost || 'smtp-relay.brevo.com';
+                document.getElementById('smtpUser').value = smtpSettings.smtpUser || '';
+                document.getElementById('smtpPass').value = smtpSettings.smtpPass || '';
+                document.getElementById('senderName').value = smtpSettings.senderName || '';
+            }
+        }
+    } catch (error) {
+        console.error("Load Settings Error:", error);
+    }
+}
+
+async function saveSettings() {
+    const newSettings = {
         smtpHost: document.getElementById('smtpHost').value,
         smtpUser: document.getElementById('smtpUser').value,
         smtpPass: document.getElementById('smtpPass').value,
         senderName: document.getElementById('senderName').value
     };
-    localStorage.setItem('smtpSettings', JSON.stringify(smtpSettings));
-    alert('Settings saved!');
+
+    try {
+        // Upsert settings (SQLite specific upsert or simple check)
+        const check = await db.execute("SELECT id FROM settings WHERE id = 'default'");
+        
+        if (check.rows.length > 0) {
+            await db.execute({
+                sql: "UPDATE settings SET smtp_host=?, smtp_user=?, smtp_pass=?, sender_name=? WHERE id='default'",
+                args: [newSettings.smtpHost, newSettings.smtpUser, newSettings.smtpPass, newSettings.senderName]
+            });
+        } else {
+            await db.execute({
+                sql: "INSERT INTO settings (id, smtp_host, smtp_user, smtp_pass, sender_name) VALUES ('default', ?, ?, ?, ?)",
+                args: [newSettings.smtpHost, newSettings.smtpUser, newSettings.smtpPass, newSettings.senderName]
+            });
+        }
+
+        smtpSettings = newSettings; // Update local state
+        localStorage.setItem('smtpSettings', JSON.stringify(smtpSettings)); // Keep backup just in case
+        alert('Settings saved to database!');
+    } catch (error) {
+        console.error("Save Settings Error:", error);
+        alert("Failed to save settings: " + error.message);
+    }
 }
 
-// Lead Functions (Existing)
+// Lead Functions (Modified for Turso DB)
 function openModal(lead = null) {
     modal.style.display = 'block';
     if (lead) {
@@ -339,10 +416,20 @@ function closeNotesModalFn() {
     currentViewLeadId = null;
 }
 
-function saveLead() {
+async function saveLead() {
     const id = document.getElementById('leadId').value;
+    const isNew = !id;
+    const leadId = id || crypto.randomUUID(); // Use standard UUID for new leads
+    
+    // Get existing notes if editing
+    let currentNotes = [];
+    if (!isNew) {
+        const existingLead = leads.find(l => l.id === id);
+        if (existingLead) currentNotes = existingLead.notes || [];
+    }
+
     const leadData = {
-        id: id || Date.now().toString(),
+        id: leadId,
         name: document.getElementById('name').value,
         email: document.getElementById('email').value,
         phone: document.getElementById('phone').value,
@@ -353,29 +440,45 @@ function saveLead() {
         workNature: document.getElementById('workNature').value,
         status: document.getElementById('status').value,
         nextFollowUp: document.getElementById('nextFollowUp').value,
-        notes: isEditing ? leads.find(l => l.id === id).notes : [],
-        createdAt: isEditing ? leads.find(l => l.id === id).createdAt : new Date().toISOString()
+        notes: JSON.stringify(currentNotes), // Store notes as JSON string
+        createdAt: isNew ? new Date().toISOString() : (leads.find(l => l.id === id)?.createdAt || new Date().toISOString())
     };
 
-    if (isEditing) {
-        const index = leads.findIndex(l => l.id === id);
-        leads[index] = leadData;
-    } else {
-        leads.unshift(leadData);
-    }
+    try {
+        if (isNew) {
+            await db.execute({
+                sql: `INSERT INTO leads (id, name, email, phone, website, company, socials, nature, work_nature, status, next_follow_up, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                args: [leadData.id, leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.createdAt]
+            });
+        } else {
+            await db.execute({
+                sql: `UPDATE leads SET name=?, email=?, phone=?, website=?, company=?, socials=?, nature=?, work_nature=?, status=?, next_follow_up=?, notes=? WHERE id=?`,
+                args: [leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.id]
+            });
+        }
 
-    saveToLocalStorage();
-    renderLeads();
-    updateStats();
-    closeModalFn();
+        await renderLeads(); // Refresh from DB
+        updateStats();
+        closeModalFn();
+    } catch (error) {
+        console.error("Save Error:", error);
+        alert("Failed to save lead: " + error.message);
+    }
 }
 
-function deleteLead(id) {
+async function deleteLead(id) {
     if (confirm('Are you sure you want to delete this lead?')) {
-        leads = leads.filter(l => l.id !== id);
-        saveToLocalStorage();
-        renderLeads();
-        updateStats();
+        try {
+            await db.execute({
+                sql: "DELETE FROM leads WHERE id = ?",
+                args: [id]
+            });
+            await renderLeads();
+            updateStats();
+        } catch (error) {
+            console.error("Delete Error:", error);
+            alert("Failed to delete lead");
+        }
     }
 }
 
@@ -405,7 +508,7 @@ function viewLead(id) {
     notesModal.style.display = 'block';
 }
 
-function addNote(leadId, text) {
+async function addNote(leadId, text) {
     const lead = leads.find(l => l.id === leadId);
     const newNote = {
         id: Date.now().toString(),
@@ -416,8 +519,16 @@ function addNote(leadId, text) {
     if (!lead.notes) lead.notes = [];
     lead.notes.unshift(newNote);
     
-    saveToLocalStorage();
-    renderNotes(lead);
+    try {
+        await db.execute({
+            sql: "UPDATE leads SET notes = ? WHERE id = ?",
+            args: [JSON.stringify(lead.notes), leadId]
+        });
+        renderNotes(lead);
+    } catch (error) {
+        console.error("Add Note Error:", error);
+        alert("Failed to add note");
+    }
 }
 
 function renderNotes(lead) {
@@ -439,52 +550,79 @@ function renderNotes(lead) {
     });
 }
 
-function saveToLocalStorage() {
-    localStorage.setItem('leads', JSON.stringify(leads));
-}
-
-function renderLeads() {
-    leadsList.innerHTML = '';
-    const term = searchInput.value.toLowerCase();
-    const status = statusFilter.value;
-
-    const filteredLeads = leads.filter(lead => {
-        const matchesTerm = lead.name.toLowerCase().includes(term) || 
-                            lead.company.toLowerCase().includes(term) ||
-                            lead.email.toLowerCase().includes(term);
-        const matchesStatus = status === 'All' || lead.status === status;
-        return matchesTerm && matchesStatus;
-    });
-
-    if (filteredLeads.length === 0) {
-        leadsList.innerHTML = '<tr><td colspan="7" style="text-align: center;">No leads found</td></tr>';
-        return;
-    }
-
-    filteredLeads.forEach(lead => {
-        const row = document.createElement('tr');
+async function renderLeads() {
+    leadsList.innerHTML = '<tr><td colspan="7" style="text-align: center;">Loading leads...</td></tr>';
+    
+    try {
+        const result = await db.execute("SELECT * FROM leads ORDER BY created_at DESC");
         
-        const natureBadge = lead.nature === 'Client' 
-            ? '<span class="badge badge-client">Client</span>' 
-            : '<span class="badge badge-agency">Agency</span>';
+        // Transform rows to match app structure (parse JSON notes)
+        leads = result.rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            email: row.email,
+            phone: row.phone,
+            website: row.website,
+            company: row.company,
+            socials: row.socials,
+            nature: row.nature,
+            workNature: row.work_nature, // Map back to JS property name
+            status: row.status,
+            nextFollowUp: row.next_follow_up,
+            notes: row.notes ? JSON.parse(row.notes) : [],
+            createdAt: row.created_at
+        }));
 
-        const statusClass = `status-${lead.status.toLowerCase().replace(' ', '-')}`;
-        const statusBadge = `<span class="badge ${statusClass}">${lead.status}</span>`;
+        const term = searchInput.value.toLowerCase();
+        const status = statusFilter.value;
 
-        row.innerHTML = `
-            <td>${lead.name}</td>
-            <td>${lead.company}</td>
-            <td>${statusBadge}</td>
-            <td>${lead.nextFollowUp || '-'}</td>
-            <td>${natureBadge}</td>
-            <td>
-                <button class="action-btn view-btn" onclick="viewLead('${lead.id}')" title="View & Notes"><i class="fas fa-eye"></i></button>
-                <button class="action-btn edit-btn" onclick="editLead('${lead.id}')" title="Edit"><i class="fas fa-edit"></i></button>
-                <button class="action-btn delete-btn" onclick="deleteLead('${lead.id}')" title="Delete"><i class="fas fa-trash"></i></button>
-            </td>
-        `;
-        leadsList.appendChild(row);
-    });
+        const filteredLeads = leads.filter(lead => {
+            const matchesTerm = (lead.name || '').toLowerCase().includes(term) || 
+                                (lead.company || '').toLowerCase().includes(term) ||
+                                (lead.email || '').toLowerCase().includes(term);
+            const matchesStatus = status === 'All' || lead.status === status;
+            return matchesTerm && matchesStatus;
+        });
+
+        leadsList.innerHTML = ''; // Clear loading
+
+        if (filteredLeads.length === 0) {
+            leadsList.innerHTML = '<tr><td colspan="7" style="text-align: center;">No leads found</td></tr>';
+            updateStats(); // Ensure stats are updated even if empty
+            return;
+        }
+
+        filteredLeads.forEach(lead => {
+            const row = document.createElement('tr');
+            
+            const natureBadge = lead.nature === 'Client' 
+                ? '<span class="badge badge-client">Client</span>' 
+                : '<span class="badge badge-agency">Agency</span>';
+
+            const statusClass = `status-${(lead.status || 'new').toLowerCase().replace(' ', '-')}`;
+            const statusBadge = `<span class="badge ${statusClass}">${lead.status}</span>`;
+
+            row.innerHTML = `
+                <td>${lead.name}</td>
+                <td>${lead.company}</td>
+                <td>${statusBadge}</td>
+                <td>${lead.nextFollowUp || '-'}</td>
+                <td>${natureBadge}</td>
+                <td>
+                    <button class="action-btn view-btn" onclick="viewLead('${lead.id}')" title="View & Notes"><i class="fas fa-eye"></i></button>
+                    <button class="action-btn edit-btn" onclick="editLead('${lead.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button class="action-btn delete-btn" onclick="deleteLead('${lead.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                </td>
+            `;
+            leadsList.appendChild(row);
+        });
+        
+        updateStats();
+
+    } catch (error) {
+        console.error("Render Error:", error);
+        leadsList.innerHTML = '<tr><td colspan="7" style="text-align: center; color: red;">Error loading leads</td></tr>';
+    }
 }
 
 function updateStats() {
