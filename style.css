@@ -257,6 +257,25 @@ header h1 {
     box-shadow: none;
 }
 
+.btn-icon-small {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+}
+
+.btn-icon-small:hover {
+    background: var(--primary-dark);
+}
+
 .tag-item {
     background-color: var(--primary-light);
     color: var(--primary-color);

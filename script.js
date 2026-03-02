@@ -135,6 +135,7 @@ const leadDetails = document.getElementById('leadDetails');
 // Tag Input Elements
 const socialsContainer = document.getElementById('socialsContainer');
 const socialsInput = document.getElementById('socialsInput');
+const addSocialBtn = document.getElementById('addSocialBtn');
 const socialsHidden = document.getElementById('socials');
 let socialTags = [];
 
@@ -409,7 +410,20 @@ async function importSelectedLeads() {
 }
 
 // Tag Input Logic
-socialsContainer.addEventListener('click', () => socialsInput.focus());
+socialsContainer.addEventListener('click', (e) => {
+    // Only focus input if clicking background, not buttons
+    if (e.target === socialsContainer || e.target === socialsInput) {
+        socialsInput.focus();
+    }
+});
+
+// Add button click handler
+addSocialBtn.addEventListener('click', (e) => {
+    e.preventDefault(); // Prevent form submission
+    addSocialTag(socialsInput.value);
+    socialsInput.value = '';
+    socialsInput.focus();
+});
 
 socialsInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
