@@ -44,13 +44,24 @@ async function initDB() {
         await db.execute(`
             CREATE TABLE IF NOT EXISTS settings (
                 id TEXT PRIMARY KEY,
-                smtp_host TEXT,
-                smtp_user TEXT,
-                smtp_pass TEXT,
+                service_id TEXT,
+                template_id TEXT,
+                public_key TEXT,
                 sender_name TEXT
             )
         `);
+        
+        // Migration: Check if we need to drop old settings table or alter it
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN service_id TEXT");
+            await db.execute("ALTER TABLE settings ADD COLUMN template_id TEXT");
+            await db.execute("ALTER TABLE settings ADD COLUMN public_key TEXT");
+        } catch (e) {
+            // Columns might already exist
+        }
+
         console.log("Database initialized");
+        await loadSettings(); // Load settings first
         renderLeads(); // Load data after DB is ready
     } catch (error) {
         console.error("DB Init Error:", error);
@@ -103,7 +114,7 @@ const closedWonEl = document.getElementById('closedWon');
 // State
 let leads = []; // Will be populated from DB
 let campaigns = JSON.parse(localStorage.getItem('campaigns')) || [];
-let smtpSettings = JSON.parse(localStorage.getItem('smtpSettings')) || {};
+let emailSettings = JSON.parse(localStorage.getItem('emailSettings')) || {};
 let isEditing = false;
 let currentViewLeadId = null;
 
@@ -168,9 +179,15 @@ targetAudience.addEventListener('change', updateRecipientCount);
 
 // Navigation Function (Exposed to window)
 window.switchView = function(viewName) {
-    // Update menu active state
+    // Update desktop menu active state
     document.querySelectorAll('.sidebar nav li').forEach(li => li.classList.remove('active'));
-    event.currentTarget.classList.add('active');
+    const desktopNavItem = document.querySelector(`.sidebar nav li[onclick="switchView('${viewName}')"]`);
+    if (desktopNavItem) desktopNavItem.classList.add('active');
+
+    // Update mobile bottom nav active state
+    document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
+    const mobileNavItem = document.querySelector(`.bottom-nav-item[onclick="switchView('${viewName}')"]`);
+    if (mobileNavItem) mobileNavItem.classList.add('active');
 
     // Show/Hide views
     Object.keys(views).forEach(key => {
@@ -221,17 +238,20 @@ async function sendCampaign() {
     }
 
     // Ensure settings are loaded from DB if missing locally
-    if (!smtpSettings.smtpUser || !smtpSettings.smtpPass) {
+    if (!emailSettings.publicKey) {
         console.log("Settings missing locally, attempting to fetch from Turso...");
         await loadSettings();
     }
 
-    if (!smtpSettings.smtpUser || !smtpSettings.smtpPass) {
-        alert('Please configure SMTP settings first!');
+    if (!emailSettings.serviceId || !emailSettings.templateId || !emailSettings.publicKey) {
+        alert('Please configure EmailJS settings first!');
         switchView('settings');
         closeCampaignModalFn();
         return;
     }
+
+    // Initialize EmailJS with public key
+    emailjs.init(emailSettings.publicKey);
 
     // Start Sending
     sendingModal.style.display = 'block';
@@ -257,41 +277,34 @@ async function sendCampaign() {
         progressBar.style.width = `${percent}%`;
         statusText.textContent = `Sending to ${lead.email} (${i + 1}/${recipients.length})...`;
         
-        // Prepare content
-        const subject = campaignData.subjectTemplate
-            .replace('{name}', lead.name)
-            .replace('{company}', lead.company);
-            
-        const body = document.getElementById('emailBody').value
-            .replace('{name}', lead.name)
-            .replace('{company}', lead.company)
-            .replace(/\n/g, '<br>');
+        // Prepare content variables for template
+        const templateParams = {
+            to_name: lead.name,
+            to_email: lead.email,
+            company_name: lead.company,
+            subject: campaignData.subjectTemplate
+                .replace('{name}', lead.name)
+                .replace('{company}', lead.company),
+            message_html: document.getElementById('emailBody').value
+                .replace('{name}', lead.name)
+                .replace('{company}', lead.company)
+                .replace(/\n/g, '<br>')
+        };
 
-        // Call SmtpJS
+        // Call EmailJS
         try {
-            // Ensure Email object exists
-            if (typeof window.Email === 'undefined') {
-                console.error("SmtpJS not loaded. Please refresh the page or check your internet connection.");
-                alert("Email library failed to load. Please check your internet connection and refresh.");
-                return;
-            }
+            const response = await emailjs.send(
+                emailSettings.serviceId,
+                emailSettings.templateId,
+                templateParams
+            );
 
-            const message = await window.Email.send({
-                Host: smtpSettings.smtpHost || "smtp-relay.brevo.com",
-                Username: smtpSettings.smtpUser,
-                Password: smtpSettings.smtpPass,
-                To: lead.email,
-                From: `${smtpSettings.senderName ? `"${smtpSettings.senderName}"` : ""} <${smtpSettings.smtpUser}>`,
-                Subject: subject,
-                Body: body
-            });
-
-            if (message === "OK") {
+            if (response.status === 200) {
                 successCount++;
-                console.log(`[SMTP] Sent to ${lead.email}`);
+                console.log(`[EmailJS] Sent to ${lead.email}`);
             } else {
                 failCount++;
-                console.error(`[SMTP Error] ${lead.email}:`, message);
+                console.error(`[EmailJS Error] ${lead.email}:`, response);
             }
         } catch (error) {
             failCount++;
@@ -355,20 +368,22 @@ async function loadSettings() {
         const rs = await db.execute("SELECT * FROM settings WHERE id = 'default'");
         if (rs.rows.length > 0) {
             const row = rs.rows[0];
-            smtpSettings = {
-                smtpHost: row.smtp_host,
-                smtpUser: row.smtp_user,
-                smtpPass: row.smtp_pass,
+            // Handle both old schema (smtp) and new schema (emailjs) if needed
+            // But we will prioritize the new fields
+            emailSettings = {
+                serviceId: row.service_id,
+                templateId: row.template_id,
+                publicKey: row.public_key,
                 senderName: row.sender_name
             };
-            console.log("SMTP Settings loaded from Turso database");
+            console.log("Email Settings loaded from Turso database");
             
             // Update UI if elements exist
-            if (document.getElementById('smtpUser')) {
-                document.getElementById('smtpHost').value = smtpSettings.smtpHost || 'smtp-relay.brevo.com';
-                document.getElementById('smtpUser').value = smtpSettings.smtpUser || '';
-                document.getElementById('smtpPass').value = smtpSettings.smtpPass || '';
-                document.getElementById('senderName').value = smtpSettings.senderName || '';
+            if (document.getElementById('serviceId')) {
+                document.getElementById('serviceId').value = emailSettings.serviceId || '';
+                document.getElementById('templateId').value = emailSettings.templateId || '';
+                document.getElementById('publicKey').value = emailSettings.publicKey || '';
+                document.getElementById('senderName').value = emailSettings.senderName || '';
             }
         }
     } catch (error) {
@@ -378,30 +393,38 @@ async function loadSettings() {
 
 async function saveSettings() {
     const newSettings = {
-        smtpHost: document.getElementById('smtpHost').value,
-        smtpUser: document.getElementById('smtpUser').value,
-        smtpPass: document.getElementById('smtpPass').value,
+        serviceId: document.getElementById('serviceId').value,
+        templateId: document.getElementById('templateId').value,
+        publicKey: document.getElementById('publicKey').value,
         senderName: document.getElementById('senderName').value
     };
 
     try {
-        // Upsert settings (SQLite specific upsert or simple check)
+        // Drop old table logic omitted for safety, just use new columns
+        // We need to ensure columns exist (migration logic was in initDB)
+        
         const check = await db.execute("SELECT id FROM settings WHERE id = 'default'");
         
         if (check.rows.length > 0) {
-            await db.execute({
-                sql: "UPDATE settings SET smtp_host=?, smtp_user=?, smtp_pass=?, sender_name=? WHERE id='default'",
-                args: [newSettings.smtpHost, newSettings.smtpUser, newSettings.smtpPass, newSettings.senderName]
-            });
+            // Check if columns exist before update (naive approach) or just try-catch
+            try {
+                await db.execute({
+                    sql: "UPDATE settings SET service_id=?, template_id=?, public_key=?, sender_name=? WHERE id='default'",
+                    args: [newSettings.serviceId, newSettings.templateId, newSettings.publicKey, newSettings.senderName]
+                });
+            } catch (e) {
+                // If update fails, maybe columns missing? Re-create table logic is better handled in initDB properly
+                console.error("Update failed, schema mismatch?", e);
+            }
         } else {
             await db.execute({
-                sql: "INSERT INTO settings (id, smtp_host, smtp_user, smtp_pass, sender_name) VALUES ('default', ?, ?, ?, ?)",
-                args: [newSettings.smtpHost, newSettings.smtpUser, newSettings.smtpPass, newSettings.senderName]
+                sql: "INSERT INTO settings (id, service_id, template_id, public_key, sender_name) VALUES ('default', ?, ?, ?, ?)",
+                args: [newSettings.serviceId, newSettings.templateId, newSettings.publicKey, newSettings.senderName]
             });
         }
 
-        smtpSettings = newSettings; // Update local state
-        localStorage.setItem('smtpSettings', JSON.stringify(smtpSettings)); // Keep backup just in case
+        emailSettings = newSettings; // Update local state
+        localStorage.setItem('emailSettings', JSON.stringify(emailSettings));
         alert('Settings saved to database!');
     } catch (error) {
         console.error("Save Settings Error:", error);
@@ -637,13 +660,14 @@ async function renderLeads() {
             const statusClass = `status-${(lead.status || 'new').toLowerCase().replace(' ', '-')}`;
             const statusBadge = `<span class="badge ${statusClass}">${lead.status}</span>`;
 
+            // Added data-label attributes for mobile card layout
             row.innerHTML = `
-                <td>${lead.name}</td>
-                <td>${lead.company}</td>
-                <td>${statusBadge}</td>
-                <td>${lead.nextFollowUp || '-'}</td>
-                <td>${natureBadge}</td>
-                <td>
+                <td data-label="Name">${lead.name}</td>
+                <td data-label="Company">${lead.company}</td>
+                <td data-label="Status">${statusBadge}</td>
+                <td data-label="Follow-up">${lead.nextFollowUp || '-'}</td>
+                <td data-label="Type">${natureBadge}</td>
+                <td data-label="Actions">
                     <button class="action-btn view-btn" onclick="viewLead('${lead.id}')" title="View & Notes"><i class="fas fa-eye"></i></button>
                     <button class="action-btn edit-btn" onclick="editLead('${lead.id}')" title="Edit"><i class="fas fa-edit"></i></button>
                     <button class="action-btn delete-btn" onclick="deleteLead('${lead.id}')" title="Delete"><i class="fas fa-trash"></i></button>

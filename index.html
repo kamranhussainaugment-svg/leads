@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Lead Management Dashboard</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -11,7 +11,8 @@
     <div class="container">
         <aside class="sidebar">
             <div class="logo">
-                <h2>LeadManager</h2>
+                <i class="fas fa-layer-group"></i>
+                <span>LeadManager</span>
             </div>
             <nav>
                 <ul>
@@ -121,23 +122,22 @@
                 </header>
 
                 <div class="card" style="max-width: 600px;">
-                    <h3>SMTP Configuration</h3>
+                    <h3>Email Service Configuration</h3>
                     <p class="text-muted" style="margin-bottom: 20px; font-size: 13px;">
-                        Configure your SMTP server details here. We use <strong>SmtpJS</strong> to relay emails directly from the browser.
-                        <br><strong style="color: var(--warning-color);">Note:</strong> Ensure your SMTP provider (like Brevo) allows connections from "smtpjs.com".
+                        Configure your EmailJS service details here. We use <strong>EmailJS</strong> to send emails securely from the client side without CORS issues.
                     </p>
                     <form id="settingsForm">
                         <div class="form-group">
-                            <label for="smtpHost">SMTP Host</label>
-                            <input type="text" id="smtpHost" value="smtp-relay.brevo.com" required>
+                            <label for="serviceId">Service ID</label>
+                            <input type="text" id="serviceId" placeholder="service_xxx" required>
                         </div>
                         <div class="form-group">
-                            <label for="smtpUser">SMTP Login/Email</label>
-                            <input type="email" id="smtpUser" placeholder="your-email@example.com" required>
+                            <label for="templateId">Template ID</label>
+                            <input type="text" id="templateId" placeholder="template_xxx" required>
                         </div>
                         <div class="form-group">
-                            <label for="smtpPass">SMTP Password / Key</label>
-                            <input type="password" id="smtpPass" placeholder="xsmtpsib-..." required>
+                            <label for="publicKey">Public Key</label>
+                            <input type="text" id="publicKey" placeholder="user_xxx" required>
                         </div>
                         <div class="form-group">
                             <label for="senderName">Default Sender Name</label>
@@ -336,8 +336,29 @@
         </div>
     </div>
 
-    <!-- Load SmtpJS first and wait for it -->
-    <script src="smtp.js"></script>
+    <!-- EmailJS SDK -->
+    <!-- Mobile Bottom Navigation -->
+    <div class="bottom-nav">
+        <div class="bottom-nav-item active" onclick="switchView('dashboard')">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </div>
+        <div class="bottom-nav-item" onclick="switchView('campaigns')">
+            <i class="fas fa-paper-plane"></i>
+            <span>Campaigns</span>
+        </div>
+        <div class="bottom-nav-item" onclick="switchView('settings')">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            emailjs.init("YOUR_PUBLIC_KEY"); // User needs to replace this
+        })();
+    </script>
     <script type="module" src="script.js"></script>
 </body>
 </html>
