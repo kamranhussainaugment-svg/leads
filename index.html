@@ -325,14 +325,21 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="targetAudience">Target Audience</label>
-                        <select id="targetAudience">
-                            <option value="All">All Leads</option>
+                        <label for="targetAudience">Target Audience (Filters)</label>
+                        <select id="targetAudience" multiple style="height: 120px;">
+                            <option value="All" selected>All Leads</option>
+                            <option disabled>--- By Type ---</option>
                             <option value="Client">Clients Only</option>
                             <option value="Agency">Agencies Only</option>
+                            <option disabled>--- By Status ---</option>
                             <option value="New">Status: New</option>
+                            <option value="Contacted">Status: Contacted</option>
+                            <option value="Email Opened">Status: Email Opened</option>
+                            <option value="Lead Clicked">Status: Lead Clicked</option>
                             <option value="Qualified">Status: Qualified</option>
+                            <option value="Bounced">Status: Bounced</option>
                         </select>
+                        <small class="text-muted">Hold Ctrl/Cmd to select multiple filters</small>
                         <div id="recipientCount" style="margin-top: 5px; font-size: 13px; color: var(--info-color);"></div>
                     </div>
 

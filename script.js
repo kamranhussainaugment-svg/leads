@@ -249,23 +249,37 @@ function closeCampaignModalFn() {
 }
 
 function updateRecipientCount() {
-    const audience = targetAudience.value;
-    const count = getRecipients(audience).length;
+    // Get selected values from multi-select
+    const selectedOptions = Array.from(targetAudience.selectedOptions).map(opt => opt.value).filter(v => v !== 'All');
+    
+    // If 'All' is selected or nothing selected, treat as All
+    const isAll = targetAudience.selectedOptions[0]?.value === 'All' || selectedOptions.length === 0;
+
+    const count = getRecipients(isAll ? ['All'] : selectedOptions).length;
     recipientCount.textContent = `Will send to approx. ${count} recipients`;
 }
 
-function getRecipients(audience) {
+function getRecipients(filters) {
+    if (filters.includes('All')) {
+        return leads.filter(l => l.email);
+    }
+
     return leads.filter(lead => {
         if (!lead.email) return false;
-        if (audience === 'All') return true;
-        if (audience === 'Client') return lead.nature === 'Client';
-        if (audience === 'Agency') return lead.nature === 'Agency';
-        return lead.status === audience;
+        
+        // Match ANY of the selected criteria
+        return filters.some(filter => {
+            if (filter === 'Client' || filter === 'Agency') return lead.nature === filter;
+            return lead.status === filter;
+        });
     });
 }
 
 async function sendCampaign() {
-    const recipients = getRecipients(targetAudience.value);
+    const selectedOptions = Array.from(targetAudience.selectedOptions).map(opt => opt.value).filter(v => v !== 'All');
+    const isAll = targetAudience.selectedOptions[0]?.value === 'All' || selectedOptions.length === 0;
+    
+    const recipients = getRecipients(isAll ? ['All'] : selectedOptions);
     if (recipients.length === 0) {
         alert('No recipients selected!');
         return;
