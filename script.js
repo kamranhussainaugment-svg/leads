@@ -226,8 +226,9 @@ importLeadsBtn.addEventListener('click', importSelectedLeads);
 selectAllScraped.addEventListener('change', (e) => {
     const checkboxes = document.querySelectorAll('.scrape-checkbox');
     checkboxes.forEach(cb => cb.checked = e.target.checked);
-    updateImportBm./ Skey => {
-}
+    updateImportButton();
+});
+
 function updateRecipientCount() {
     // Get selected values from multi-select
     const selectedOptions = Array.from(targetAudience.selectedOptions).map(opt => opt.value).filter(v => v !== 'All');
