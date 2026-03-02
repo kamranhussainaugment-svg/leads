@@ -248,20 +248,11 @@ async function sendCampaign() {
 
         // Call SmtpJS
         try {
-            // Dynamic load fallback
+            // Ensure Email object exists
             if (typeof window.Email === 'undefined') {
-                console.warn("SmtpJS not found, attempting to load dynamically...");
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://smtpjs.com/v3/smtp.js';
-                    script.onload = resolve;
-                    script.onerror = reject;
-                    document.head.appendChild(script);
-                });
-            }
-
-            if (typeof window.Email === 'undefined') {
-                throw new Error("Failed to load SmtpJS library.");
+                console.error("SmtpJS not loaded. Please refresh the page or check your internet connection.");
+                alert("Email library failed to load. Please check your internet connection and refresh.");
+                return;
             }
 
             const message = await window.Email.send({
