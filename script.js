@@ -144,21 +144,10 @@ const targetAudience = document.getElementById('targetAudience');
 const recipientCount = document.getElementById('recipientCount');
 const settingsForm = document.getElementById('settingsForm');
 
-// Scraper Elements
-const startScrapeBtn = document.getElementById('startScrapeBtn');
-const scraperForm = document.getElementById('scraperForm');
-const scraperResultsContainer = document.querySelector('.scraper-results-container');
-const scraperList = document.getElementById('scraperList');
-const importLeadsBtn = document.getElementById('importLeadsBtn');
-const selectAllScraped = document.getElementById('selectAllScraped');
-const foundCount = document.getElementById('foundCount');
-let scrapedLeads = []; // Store scraped data temporarily
-
 // Views
 const views = {
     dashboard: document.getElementById('dashboard-view'),
     campaigns: document.getElementById('campaigns-view'),
-    scraper: document.getElementById('scraper-view'),
     settings: document.getElementById('settings-view')
 };
 
@@ -258,17 +247,8 @@ settingsForm.addEventListener('submit', (e) => {
 searchInput.addEventListener('input', () => renderLeads());
 statusFilter.addEventListener('change', () => renderLeads());
 
-// Scraper Event Listeners
-startScrapeBtn.addEventListener('click', runScraper);
-importLeadsBtn.addEventListener('click', importSelectedLeads);
-selectAllScraped.addEventListener('change', (e) => {
-    const checkboxes = document.querySelectorAll('.scrape-checkbox');
-    checkboxes.forEach(cb => cb.checked = e.target.checked);
-    updateImportButton();
-});
-
-// Scraper Functions
-async function runScraper() {
+// Tag Input Logic
+socialsContainer.addEventListener('click', (e) => {
     const niche = document.getElementById('scrapeNiche').value;
     const city = document.getElementById('scrapeCity').value;
     const country = document.getElementById('scrapeCountry').value;

@@ -18,7 +18,6 @@
                 <ul>
                     <li class="active" onclick="switchView('dashboard')"><a href="#"><i class="fas fa-home"></i> Dashboard</a></li>
                     <li onclick="switchView('campaigns')"><a href="#"><i class="fas fa-paper-plane"></i> Campaigns</a></li>
-                    <li onclick="switchView('scraper')"><a href="#"><i class="fas fa-search"></i> Scraper</a></li>
                     <li onclick="switchView('settings')"><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
                 </ul>
             </nav>
@@ -114,58 +113,6 @@
                             </thead>
                             <tbody id="campaignsList">
                                 <!-- Campaigns will be populated here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Scraper View -->
-            <section id="scraper-view" style="display: none;">
-                <header>
-                    <h1>Lead Scraper</h1>
-                    <button id="startScrapeBtn" class="btn-primary"><i class="fas fa-search"></i> Start Search</button>
-                </header>
-
-                <div class="card" style="margin-bottom: 20px;">
-                    <form id="scraperForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <div class="form-group">
-                            <label for="scrapeNiche">Niche / Keyword</label>
-                            <input type="text" id="scrapeNiche" placeholder="e.g. Digital Marketing, SEO" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="scrapeCity">City</label>
-                            <input type="text" id="scrapeCity" placeholder="e.g. New York">
-                        </div>
-                        <div class="form-group">
-                            <label for="scrapeCountry">Country</label>
-                            <input type="text" id="scrapeCountry" placeholder="e.g. USA" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="scrapePages">Pages to Scan (Max 5)</label>
-                            <input type="number" id="scrapePages" min="1" max="5" value="1">
-                        </div>
-                    </form>
-                </div>
-
-                <div class="scraper-results-container" style="display: none;">
-                    <div class="table-header">
-                        <h2>Found Leads <span id="foundCount" class="badge badge-client">0</span></h2>
-                        <button id="importLeadsBtn" class="btn-primary" disabled>Import Selected</button>
-                    </div>
-                    <div class="table-responsive">
-                        <table id="scraperTable">
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;"><input type="checkbox" id="selectAllScraped"></th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Source / Title</th>
-                                    <th>Location</th>
-                                </tr>
-                            </thead>
-                            <tbody id="scraperList">
-                                <!-- Scraped results here -->
                             </tbody>
                         </table>
                     </div>
@@ -443,10 +390,6 @@
         <div class="bottom-nav-item" onclick="switchView('campaigns')">
             <i class="fas fa-paper-plane"></i>
             <span>Campaigns</span>
-        </div>
-        <div class="bottom-nav-item" onclick="switchView('scraper')">
-            <i class="fas fa-search"></i>
-            <span>Scraper</span>
         </div>
         <div class="bottom-nav-item" onclick="switchView('settings')">
             <i class="fas fa-cog"></i>
