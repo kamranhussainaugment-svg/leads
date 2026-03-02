@@ -347,7 +347,8 @@ async function sendCampaign() {
                     subject: subject,
                     htmlContent: htmlContent,
                     senderName: emailSettings.senderName,
-                    senderEmail: emailSettings.senderEmail
+                    senderEmail: emailSettings.senderEmail,
+                    tag: campaignData.id // Pass Campaign ID as tag for tracking
                 })
             });
 
@@ -386,28 +387,88 @@ async function sendCampaign() {
 }
 
 function renderCampaigns() {
-    campaignsList.innerHTML = '';
-    if (campaigns.length === 0) {
-        campaignsList.innerHTML = '<tr><td colspan="6" style="text-align: center;">No campaigns yet</td></tr>';
-        return;
-    }
-
-    campaigns.forEach(camp => {
+    const list = document.getElementById('campaignsList');
+    list.innerHTML = '';
+    
+    campaigns.forEach(c => {
         const row = document.createElement('tr');
-        const date = new Date(camp.sentDate).toLocaleDateString();
+        
+        // Calculate percentages if stats available (default to 0/0)
+        let openRate = '0%';
+        let clickRate = '0%';
+        let statsHtml = '<span class="status-badge status-new">No Data</span>';
+
+        if (c.stats) {
+            const delivered = c.stats.delivered || 1; // avoid div by zero
+            openRate = Math.round((c.stats.opens / delivered) * 100) + '%';
+            clickRate = Math.round((c.stats.clicks / delivered) * 100) + '%';
+            
+            statsHtml = `
+                <div style="font-size: 0.85em; display: flex; gap: 10px;">
+                    <span title="Delivered" style="color: var(--success-color);"><i class="fas fa-check-circle"></i> ${c.stats.delivered}</span>
+                    <span title="Opened" style="color: var(--warning-color);"><i class="fas fa-envelope-open"></i> ${c.stats.opens} (${openRate})</span>
+                    <span title="Clicked" style="color: var(--primary-color);"><i class="fas fa-mouse-pointer"></i> ${c.stats.clicks} (${clickRate})</span>
+                </div>
+            `;
+        }
+
         row.innerHTML = `
-            <td>${camp.name}</td>
-            <td>${camp.subject}</td>
-            <td><span class="badge status-won">Sent</span></td>
-            <td>${date}</td>
-            <td>${camp.successCount !== undefined ? `${camp.successCount}/${camp.recipientCount}` : camp.recipientCount}</td>
+            <td>${c.name}</td>
+            <td>${c.subject}</td>
+            <td>${c.status}</td>
+            <td>${new Date(c.sentDate).toLocaleDateString()}</td>
+            <td>${c.recipientCount}</td>
             <td>
-                <button class="action-btn delete-btn" onclick="deleteCampaign('${camp.id}')"><i class="fas fa-trash"></i></button>
+                ${statsHtml}
+                <button class="btn-secondary btn-sm" onclick="refreshCampaignStats('${c.id}')" title="Refresh Stats"><i class="fas fa-sync-alt"></i></button>
             </td>
         `;
-        campaignsList.appendChild(row);
+        list.appendChild(row);
     });
 }
+
+// Add function to global scope so onclick works
+window.refreshCampaignStats = async function(campaignId) {
+    if (!emailSettings.apiKey) {
+        alert("Please configure your Brevo API Key in Settings to fetch statistics.");
+        return;
+    }
+    
+    const btn = event.currentTarget;
+    const icon = btn.querySelector('i');
+    icon.classList.add('fa-spin');
+
+    try {
+        const response = await fetch('/api/get-stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                apiKey: emailSettings.apiKey,
+                tag: campaignId
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            // Update campaign stats in local storage
+            const campaignIndex = campaigns.findIndex(c => c.id === campaignId);
+            if (campaignIndex !== -1) {
+                campaigns[campaignIndex].stats = result.stats;
+                localStorage.setItem('campaigns', JSON.stringify(campaigns));
+                renderCampaigns();
+            }
+        } else {
+            console.error("Stats Error:", result);
+            alert("Failed to fetch stats: " + (result.error || "Unknown error"));
+        }
+    } catch (error) {
+        console.error("Network Error:", error);
+        alert("Network error while fetching stats.");
+    } finally {
+        icon.classList.remove('fa-spin');
+    }
+};
 
 function deleteCampaign(id) {
     if (confirm('Delete this campaign record?')) {
@@ -423,6 +484,7 @@ async function loadSettings() {
         if (rs.rows.length > 0) {
             const row = rs.rows[0];
             emailSettings = {
+                apiKey: row.api_key,
                 smtpUser: row.smtp_user,
                 smtpKey: row.smtp_key,
                 imapHost: row.imap_host,
@@ -434,6 +496,7 @@ async function loadSettings() {
             
             // Update UI if elements exist
             if (document.getElementById('smtpUser')) {
+                document.getElementById('apiKey').value = emailSettings.apiKey || '';
                 document.getElementById('smtpUser').value = emailSettings.smtpUser || '';
                 document.getElementById('smtpKey').value = emailSettings.smtpKey || '';
                 document.getElementById('imapHost').value = emailSettings.imapHost || 'imap.brevo.com';
@@ -449,6 +512,7 @@ async function loadSettings() {
 
 async function saveSettings() {
     const newSettings = {
+        apiKey: document.getElementById('apiKey').value,
         smtpUser: document.getElementById('smtpUser').value,
         smtpKey: document.getElementById('smtpKey').value,
         imapHost: document.getElementById('imapHost').value,
@@ -463,8 +527,8 @@ async function saveSettings() {
         if (check.rows.length > 0) {
             try {
                 await db.execute({
-                    sql: "UPDATE settings SET smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
-                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                    sql: "UPDATE settings SET api_key=?, smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
+                    args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                 });
             } catch (updateError) {
                 // If update fails due to missing column, try to migrate and retry
@@ -477,8 +541,8 @@ async function saveSettings() {
                     
                     // Retry update
                     await db.execute({
-                        sql: "UPDATE settings SET smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
-                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                        sql: "UPDATE settings SET api_key=?, smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
+                        args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                     });
                 } else {
                     throw updateError;
@@ -488,12 +552,13 @@ async function saveSettings() {
             // Same check for INSERT
              try {
                 await db.execute({
-                    sql: "INSERT INTO settings (id, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?)",
-                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                    sql: "INSERT INTO settings (id, api_key, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?, ?)",
+                    args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                 });
             } catch (insertError) {
                 if (insertError.message.includes("no such column")) {
                     console.log("Missing columns detected during insert, attempting repair...");
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN api_key TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT"); } catch(e) {}
@@ -501,8 +566,8 @@ async function saveSettings() {
                     
                     // Retry insert
                     await db.execute({
-                        sql: "INSERT INTO settings (id, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?)",
-                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                        sql: "INSERT INTO settings (id, api_key, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?, ?)",
+                        args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                     });
                 } else {
                     throw insertError;

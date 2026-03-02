@@ -5,7 +5,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { smtpUser, smtpKey, to, subject, htmlContent, senderName, senderEmail } = req.body;
+    const { smtpUser, smtpKey, to, subject, htmlContent, senderName, senderEmail, tag } = req.body;
 
     if (!smtpUser || !smtpKey || !to || !subject || !htmlContent || !senderEmail) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -22,12 +22,20 @@ export default async function handler(req, res) {
             },
         });
 
-        const info = await transporter.sendMail({
+        const mailOptions = {
             from: `"${senderName || 'Lead Manager'}" <${senderEmail}>`, // sender address
             to: to, // list of receivers
             subject: subject, // Subject line
             html: htmlContent, // html body
-        });
+        };
+
+        if (tag) {
+            mailOptions.headers = {
+                'X-Mailin-Tag': tag
+            };
+        }
+
+        const info = await transporter.sendMail(mailOptions);
 
         return res.status(200).json({ success: true, messageId: info.messageId });
     } catch (error) {
