@@ -47,7 +47,11 @@ async function initDB() {
                 service_id TEXT,
                 template_id TEXT,
                 public_key TEXT,
-                sender_name TEXT
+                sender_name TEXT,
+                api_key TEXT,
+                sender_email TEXT,
+                smtp_user TEXT,
+                smtp_key TEXT
             )
         `);
         
@@ -66,9 +70,12 @@ async function initDB() {
         
         // Migration for SMTP (User/Pass)
         try {
-            await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT");
-            await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT");
-        } catch (e) {}
+            // Try adding columns one by one and log errors
+            try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT"); } catch(e) { console.log("smtp_user col exists or error", e); }
+            try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) { console.log("smtp_key col exists or error", e); }
+        } catch (e) {
+            console.error("Migration error", e);
+        }
 
         console.log("Database initialized");
         await loadSettings(); // Load settings first
@@ -416,15 +423,49 @@ async function saveSettings() {
         const check = await db.execute("SELECT id FROM settings WHERE id = 'default'");
         
         if (check.rows.length > 0) {
-            await db.execute({
-                sql: "UPDATE settings SET smtp_user=?, smtp_key=?, sender_email=?, sender_name=? WHERE id='default'",
-                args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
-            });
+            try {
+                await db.execute({
+                    sql: "UPDATE settings SET smtp_user=?, smtp_key=?, sender_email=?, sender_name=? WHERE id='default'",
+                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                });
+            } catch (updateError) {
+                // If update fails due to missing column, try to migrate and retry
+                if (updateError.message.includes("no such column")) {
+                    console.log("Missing columns detected during save, attempting repair...");
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) {}
+                    
+                    // Retry update
+                    await db.execute({
+                        sql: "UPDATE settings SET smtp_user=?, smtp_key=?, sender_email=?, sender_name=? WHERE id='default'",
+                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                    });
+                } else {
+                    throw updateError;
+                }
+            }
         } else {
-            await db.execute({
-                sql: "INSERT INTO settings (id, smtp_user, smtp_key, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?)",
-                args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
-            });
+            // Same check for INSERT
+             try {
+                await db.execute({
+                    sql: "INSERT INTO settings (id, smtp_user, smtp_key, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?)",
+                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                });
+            } catch (insertError) {
+                if (insertError.message.includes("no such column")) {
+                    console.log("Missing columns detected during insert, attempting repair...");
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) {}
+                    
+                    // Retry insert
+                    await db.execute({
+                        sql: "INSERT INTO settings (id, smtp_user, smtp_key, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?)",
+                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                    });
+                } else {
+                    throw insertError;
+                }
+            }
         }
 
         emailSettings = newSettings; // Update local state
