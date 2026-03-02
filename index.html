@@ -18,6 +18,7 @@
                 <ul>
                     <li class="active" onclick="switchView('dashboard')"><a href="#"><i class="fas fa-home"></i> Dashboard</a></li>
                     <li onclick="switchView('campaigns')"><a href="#"><i class="fas fa-paper-plane"></i> Campaigns</a></li>
+                    <li onclick="switchView('scraper')"><a href="#"><i class="fas fa-search"></i> Scraper</a></li>
                     <li onclick="switchView('settings')"><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
                 </ul>
             </nav>
@@ -213,6 +214,11 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="city">City</label>
+                        <input type="text" id="city" placeholder="e.g. London">
+                    </div>
+
+                    <div class="form-group">
                         <label for="country">Country</label>
                         <input type="text" id="country" placeholder="USA, UK, etc.">
                     </div>
@@ -380,6 +386,10 @@
         <div class="bottom-nav-item" onclick="switchView('campaigns')">
             <i class="fas fa-paper-plane"></i>
             <span>Campaigns</span>
+        </div>
+        <div class="bottom-nav-item" onclick="switchView('scraper')">
+            <i class="fas fa-search"></i>
+            <span>Scraper</span>
         </div>
         <div class="bottom-nav-item" onclick="switchView('settings')">
             <i class="fas fa-cog"></i>

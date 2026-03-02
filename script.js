@@ -40,6 +40,7 @@ async function initDB() {
 
         // Add columns if they don't exist (Migration)
         await addCol('leads', 'country');
+        await addCol('leads', 'city');
         await addCol('leads', 'profile_link');
 
         // Create Settings Table
@@ -133,10 +134,21 @@ const targetAudience = document.getElementById('targetAudience');
 const recipientCount = document.getElementById('recipientCount');
 const settingsForm = document.getElementById('settingsForm');
 
+// Scraper Elements
+const startScrapeBtn = document.getElementById('startScrapeBtn');
+const scraperForm = document.getElementById('scraperForm');
+const scraperResultsContainer = document.querySelector('.scraper-results-container');
+const scraperList = document.getElementById('scraperList');
+const importLeadsBtn = document.getElementById('importLeadsBtn');
+const selectAllScraped = document.getElementById('selectAllScraped');
+const foundCount = document.getElementById('foundCount');
+let scrapedLeads = []; // Store scraped data temporarily
+
 // Views
 const views = {
     dashboard: document.getElementById('dashboard-view'),
     campaigns: document.getElementById('campaigns-view'),
+    scraper: document.getElementById('scraper-view'),
     settings: document.getElementById('settings-view')
 };
 
@@ -200,6 +212,15 @@ settingsForm.addEventListener('submit', (e) => {
 
 searchInput.addEventListener('input', () => renderLeads());
 statusFilter.addEventListener('change', () => renderLeads());
+
+// Scraper Event Listeners
+startScrapeBtn.addEventListener('click', runScraper);
+importLeadsBtn.addEventListener('click', importSelectedLeads);
+selectAllScraped.addEventListener('change', (e) => {
+    const checkboxes = document.querySelectorAll('.scrape-checkbox');
+    checkboxes.forEach(cb => cb.checked = e.target.checked);
+    updateImportButton();
+});
 
 addNoteBtn.addEventListener('click', () => {
     const text = newNoteText.value.trim();
@@ -678,6 +699,9 @@ function openModal(lead = null) {
         leadForm.reset();
         workNatureGroup.style.display = 'none';
         document.getElementById('leadId').value = '';
+        document.getElementById('company').value = '';
+        document.getElementById('city').value = '';
+        document.getElementById('country').value = '';
         document.getElementById('status').value = 'New';
     }
 }
