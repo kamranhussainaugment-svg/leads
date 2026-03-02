@@ -248,7 +248,12 @@ async function sendCampaign() {
 
         // Call SmtpJS
         try {
-            const message = await Email.send({
+            // Use window.Email to ensure we access the global variable from the script tag
+            if (typeof window.Email === 'undefined') {
+                throw new Error("SmtpJS library not loaded. Check internet connection.");
+            }
+
+            const message = await window.Email.send({
                 Host: smtpSettings.smtpHost || "smtp-relay.brevo.com",
                 Username: smtpSettings.smtpUser,
                 Password: smtpSettings.smtpPass,
