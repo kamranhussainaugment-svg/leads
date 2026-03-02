@@ -11,6 +11,21 @@ const db = createClient({
 
 // Initialize DB
 async function initDB() {
+    // Check for duplicates
+    if (isNew) {
+        const existingEmail = leads.find(l => l.email && l.email.toLowerCase() === leadData.email.toLowerCase());
+        const existingCompany = leadData.company ? leads.find(l => l.company && l.company.toLowerCase() === leadData.company.toLowerCase()) : null;
+
+        if (existingEmail) {
+            alert(`Duplicate Error: A lead with email "${leadData.email}" already exists.`);
+            return;
+        }
+        if (existingCompany) {
+            alert(`Duplicate Error: A lead with company "${leadData.company}" already exists.`);
+            return;
+        }
+    }
+
     try {
         await db.execute(`
             CREATE TABLE IF NOT EXISTS leads (
@@ -59,16 +74,40 @@ async function initDB() {
             )
         `);
         
-        // Settings Migrations
-        await addCol('settings', 'service_id');
-        await addCol('settings', 'template_id');
-        await addCol('settings', 'public_key');
-        await addCol('settings', 'api_key');
-        await addCol('settings', 'sender_email');
-        await addCol('settings', 'smtp_user');
-        await addCol('settings', 'smtp_key');
-        await addCol('settings', 'imap_host');
-        await addCol('settings', 'imap_port');
+        // Migration: Check if we need to drop old settings table or alter it
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN service_id TEXT");
+        } catch (e) {}
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN template_id TEXT");
+        } catch (e) {}
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN public_key TEXT");
+        } catch (e) {}
+
+        // Migration for Brevo
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN api_key TEXT");
+        } catch (e) {}
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN sender_email TEXT");
+        } catch (e) {}
+        
+        // Migration for SMTP (User/Pass)
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT");
+        } catch(e) {}
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT");
+        } catch(e) {}
+
+        // Migration for IMAP
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT");
+        } catch (e) {}
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT");
+        } catch (e) {}
  
         console.log("Database initialized");
         await loadSettings(); // Load settings first
