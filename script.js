@@ -248,9 +248,20 @@ async function sendCampaign() {
 
         // Call SmtpJS
         try {
-            // Use window.Email to ensure we access the global variable from the script tag
+            // Dynamic load fallback
             if (typeof window.Email === 'undefined') {
-                throw new Error("SmtpJS library not loaded. Check internet connection.");
+                console.warn("SmtpJS not found, attempting to load dynamically...");
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://smtpjs.com/v3/smtp.js';
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            }
+
+            if (typeof window.Email === 'undefined') {
+                throw new Error("Failed to load SmtpJS library.");
             }
 
             const message = await window.Email.send({
