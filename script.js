@@ -855,6 +855,13 @@ function editLead(id) {
     openModal(lead);
 }
 
+// Make functions global so HTML onclick works
+window.viewLead = viewLead;
+window.editLead = editLead;
+window.deleteLead = deleteLead;
+window.switchView = switchView;
+window.refreshCampaignStats = refreshCampaignStats;
+
 function viewLead(id) {
     const lead = leads.find(l => l.id === id);
     currentViewLeadId = id;
