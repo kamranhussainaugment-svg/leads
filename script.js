@@ -56,9 +56,13 @@ async function initDB() {
             await db.execute("ALTER TABLE settings ADD COLUMN service_id TEXT");
             await db.execute("ALTER TABLE settings ADD COLUMN template_id TEXT");
             await db.execute("ALTER TABLE settings ADD COLUMN public_key TEXT");
-        } catch (e) {
-            // Columns might already exist
-        }
+        } catch (e) {}
+
+        // Migration for Brevo
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN api_key TEXT");
+            await db.execute("ALTER TABLE settings ADD COLUMN sender_email TEXT");
+        } catch (e) {}
 
         console.log("Database initialized");
         await loadSettings(); // Load settings first
@@ -238,20 +242,17 @@ async function sendCampaign() {
     }
 
     // Ensure settings are loaded from DB if missing locally
-    if (!emailSettings.publicKey) {
+    if (!emailSettings.apiKey) {
         console.log("Settings missing locally, attempting to fetch from Turso...");
         await loadSettings();
     }
 
-    if (!emailSettings.serviceId || !emailSettings.templateId || !emailSettings.publicKey) {
-        alert('Please configure EmailJS settings first!');
+    if (!emailSettings.apiKey || !emailSettings.senderEmail) {
+        alert('Please configure Brevo settings first!');
         switchView('settings');
         closeCampaignModalFn();
         return;
     }
-
-    // Initialize EmailJS with public key
-    emailjs.init(emailSettings.publicKey);
 
     // Start Sending
     sendingModal.style.display = 'block';
@@ -277,34 +278,41 @@ async function sendCampaign() {
         progressBar.style.width = `${percent}%`;
         statusText.textContent = `Sending to ${lead.email} (${i + 1}/${recipients.length})...`;
         
-        // Prepare content variables for template
-        const templateParams = {
-            to_name: lead.name,
-            to_email: lead.email,
-            company_name: lead.company,
-            subject: campaignData.subjectTemplate
-                .replace('{name}', lead.name)
-                .replace('{company}', lead.company),
-            message_html: document.getElementById('emailBody').value
-                .replace('{name}', lead.name)
-                .replace('{company}', lead.company)
-                .replace(/\n/g, '<br>')
-        };
+        // Prepare content
+        const subject = campaignData.subjectTemplate
+            .replace('{name}', lead.name)
+            .replace('{company}', lead.company);
+            
+        const htmlContent = document.getElementById('emailBody').value
+            .replace('{name}', lead.name)
+            .replace('{company}', lead.company)
+            .replace(/\n/g, '<br>');
 
-        // Call EmailJS
+        // Call Backend API
         try {
-            const response = await emailjs.send(
-                emailSettings.serviceId,
-                emailSettings.templateId,
-                templateParams
-            );
+            const response = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    apiKey: emailSettings.apiKey,
+                    to: lead.email,
+                    subject: subject,
+                    htmlContent: htmlContent,
+                    senderName: emailSettings.senderName,
+                    senderEmail: emailSettings.senderEmail
+                })
+            });
 
-            if (response.status === 200) {
+            const result = await response.json();
+
+            if (response.ok && result.success) {
                 successCount++;
-                console.log(`[EmailJS] Sent to ${lead.email}`);
+                console.log(`[Brevo] Sent to ${lead.email}`);
             } else {
                 failCount++;
-                console.error(`[EmailJS Error] ${lead.email}:`, response);
+                console.error(`[Brevo Error] ${lead.email}:`, result);
             }
         } catch (error) {
             failCount++;
@@ -312,7 +320,7 @@ async function sendCampaign() {
         }
 
         // Rate limiting (be gentle)
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
     }
 
     // Finish
@@ -368,21 +376,17 @@ async function loadSettings() {
         const rs = await db.execute("SELECT * FROM settings WHERE id = 'default'");
         if (rs.rows.length > 0) {
             const row = rs.rows[0];
-            // Handle both old schema (smtp) and new schema (emailjs) if needed
-            // But we will prioritize the new fields
             emailSettings = {
-                serviceId: row.service_id,
-                templateId: row.template_id,
-                publicKey: row.public_key,
+                apiKey: row.api_key,
+                senderEmail: row.sender_email,
                 senderName: row.sender_name
             };
             console.log("Email Settings loaded from Turso database");
             
             // Update UI if elements exist
-            if (document.getElementById('serviceId')) {
-                document.getElementById('serviceId').value = emailSettings.serviceId || '';
-                document.getElementById('templateId').value = emailSettings.templateId || '';
-                document.getElementById('publicKey').value = emailSettings.publicKey || '';
+            if (document.getElementById('apiKey')) {
+                document.getElementById('apiKey').value = emailSettings.apiKey || '';
+                document.getElementById('senderEmail').value = emailSettings.senderEmail || '';
                 document.getElementById('senderName').value = emailSettings.senderName || '';
             }
         }
@@ -393,33 +397,23 @@ async function loadSettings() {
 
 async function saveSettings() {
     const newSettings = {
-        serviceId: document.getElementById('serviceId').value,
-        templateId: document.getElementById('templateId').value,
-        publicKey: document.getElementById('publicKey').value,
+        apiKey: document.getElementById('apiKey').value,
+        senderEmail: document.getElementById('senderEmail').value,
         senderName: document.getElementById('senderName').value
     };
 
     try {
-        // Drop old table logic omitted for safety, just use new columns
-        // We need to ensure columns exist (migration logic was in initDB)
-        
         const check = await db.execute("SELECT id FROM settings WHERE id = 'default'");
         
         if (check.rows.length > 0) {
-            // Check if columns exist before update (naive approach) or just try-catch
-            try {
-                await db.execute({
-                    sql: "UPDATE settings SET service_id=?, template_id=?, public_key=?, sender_name=? WHERE id='default'",
-                    args: [newSettings.serviceId, newSettings.templateId, newSettings.publicKey, newSettings.senderName]
-                });
-            } catch (e) {
-                // If update fails, maybe columns missing? Re-create table logic is better handled in initDB properly
-                console.error("Update failed, schema mismatch?", e);
-            }
+            await db.execute({
+                sql: "UPDATE settings SET api_key=?, sender_email=?, sender_name=? WHERE id='default'",
+                args: [newSettings.apiKey, newSettings.senderEmail, newSettings.senderName]
+            });
         } else {
             await db.execute({
-                sql: "INSERT INTO settings (id, service_id, template_id, public_key, sender_name) VALUES ('default', ?, ?, ?, ?)",
-                args: [newSettings.serviceId, newSettings.templateId, newSettings.publicKey, newSettings.senderName]
+                sql: "INSERT INTO settings (id, api_key, sender_email, sender_name) VALUES ('default', ?, ?, ?)",
+                args: [newSettings.apiKey, newSettings.senderEmail, newSettings.senderName]
             });
         }
 

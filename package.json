@@ -1,0 +1,13 @@
+{
+  "name": "lead-management-tool",
+  "version": "1.0.0",
+  "description": "A simple lead management tool with Brevo email integration",
+  "main": "index.html",
+  "scripts": {
+    "start": "echo 'Deploy to Vercel to run backend functions'"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {}
+}
