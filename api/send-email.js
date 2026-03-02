@@ -1,42 +1,37 @@
+import nodemailer from 'nodemailer';
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { apiKey, to, subject, htmlContent, senderName, senderEmail } = req.body;
+    const { smtpUser, smtpKey, to, subject, htmlContent, senderName, senderEmail } = req.body;
 
-    if (!apiKey || !to || !subject || !htmlContent || !senderEmail) {
+    if (!smtpUser || !smtpKey || !to || !subject || !htmlContent || !senderEmail) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
-        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-            method: 'POST',
-            headers: {
-                'accept': 'application/json',
-                'api-key': apiKey,
-                'content-type': 'application/json'
+        const transporter = nodemailer.createTransport({
+            host: 'smtp-relay.brevo.com',
+            port: 587,
+            secure: false, // true for 465, false for other ports
+            auth: {
+                user: smtpUser,
+                pass: smtpKey,
             },
-            body: JSON.stringify({
-                sender: {
-                    name: senderName || 'Lead Manager',
-                    email: senderEmail
-                },
-                to: [{ email: to }],
-                subject: subject,
-                htmlContent: htmlContent
-            })
         });
 
-        const data = await response.json();
+        const info = await transporter.sendMail({
+            from: `"${senderName || 'Lead Manager'}" <${senderEmail}>`, // sender address
+            to: to, // list of receivers
+            subject: subject, // Subject line
+            html: htmlContent, // html body
+        });
 
-        if (!response.ok) {
-            return res.status(response.status).json({ error: data.message || 'Failed to send email' });
-        }
-
-        return res.status(200).json({ success: true, data });
+        return res.status(200).json({ success: true, messageId: info.messageId });
     } catch (error) {
         console.error('Email sending error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: error.message || 'Failed to send email' });
     }
 }

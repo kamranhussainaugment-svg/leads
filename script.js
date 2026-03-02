@@ -63,6 +63,12 @@ async function initDB() {
             await db.execute("ALTER TABLE settings ADD COLUMN api_key TEXT");
             await db.execute("ALTER TABLE settings ADD COLUMN sender_email TEXT");
         } catch (e) {}
+        
+        // Migration for SMTP (User/Pass)
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT");
+            await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT");
+        } catch (e) {}
 
         console.log("Database initialized");
         await loadSettings(); // Load settings first
@@ -242,13 +248,13 @@ async function sendCampaign() {
     }
 
     // Ensure settings are loaded from DB if missing locally
-    if (!emailSettings.apiKey) {
+    if (!emailSettings.smtpKey) {
         console.log("Settings missing locally, attempting to fetch from Turso...");
         await loadSettings();
     }
 
-    if (!emailSettings.apiKey || !emailSettings.senderEmail) {
-        alert('Please configure Brevo settings first!');
+    if (!emailSettings.smtpUser || !emailSettings.smtpKey || !emailSettings.senderEmail) {
+        alert('Please configure SMTP settings first!');
         switchView('settings');
         closeCampaignModalFn();
         return;
@@ -296,7 +302,8 @@ async function sendCampaign() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    apiKey: emailSettings.apiKey,
+                    smtpUser: emailSettings.smtpUser,
+                    smtpKey: emailSettings.smtpKey,
                     to: lead.email,
                     subject: subject,
                     htmlContent: htmlContent,
@@ -309,10 +316,10 @@ async function sendCampaign() {
 
             if (response.ok && result.success) {
                 successCount++;
-                console.log(`[Brevo] Sent to ${lead.email}`);
+                console.log(`[SMTP] Sent to ${lead.email}`);
             } else {
                 failCount++;
-                console.error(`[Brevo Error] ${lead.email}:`, result);
+                console.error(`[SMTP Error] ${lead.email}:`, result);
             }
         } catch (error) {
             failCount++;
@@ -377,15 +384,17 @@ async function loadSettings() {
         if (rs.rows.length > 0) {
             const row = rs.rows[0];
             emailSettings = {
-                apiKey: row.api_key,
+                smtpUser: row.smtp_user,
+                smtpKey: row.smtp_key,
                 senderEmail: row.sender_email,
                 senderName: row.sender_name
             };
             console.log("Email Settings loaded from Turso database");
             
             // Update UI if elements exist
-            if (document.getElementById('apiKey')) {
-                document.getElementById('apiKey').value = emailSettings.apiKey || '';
+            if (document.getElementById('smtpUser')) {
+                document.getElementById('smtpUser').value = emailSettings.smtpUser || '';
+                document.getElementById('smtpKey').value = emailSettings.smtpKey || '';
                 document.getElementById('senderEmail').value = emailSettings.senderEmail || '';
                 document.getElementById('senderName').value = emailSettings.senderName || '';
             }
@@ -397,7 +406,8 @@ async function loadSettings() {
 
 async function saveSettings() {
     const newSettings = {
-        apiKey: document.getElementById('apiKey').value,
+        smtpUser: document.getElementById('smtpUser').value,
+        smtpKey: document.getElementById('smtpKey').value,
         senderEmail: document.getElementById('senderEmail').value,
         senderName: document.getElementById('senderName').value
     };
@@ -407,13 +417,13 @@ async function saveSettings() {
         
         if (check.rows.length > 0) {
             await db.execute({
-                sql: "UPDATE settings SET api_key=?, sender_email=?, sender_name=? WHERE id='default'",
-                args: [newSettings.apiKey, newSettings.senderEmail, newSettings.senderName]
+                sql: "UPDATE settings SET smtp_user=?, smtp_key=?, sender_email=?, sender_name=? WHERE id='default'",
+                args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
             });
         } else {
             await db.execute({
-                sql: "INSERT INTO settings (id, api_key, sender_email, sender_name) VALUES ('default', ?, ?, ?)",
-                args: [newSettings.apiKey, newSettings.senderEmail, newSettings.senderName]
+                sql: "INSERT INTO settings (id, smtp_user, smtp_key, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?)",
+                args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
             });
         }
 
