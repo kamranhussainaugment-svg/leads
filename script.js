@@ -20,6 +20,8 @@ async function initDB() {
                 phone TEXT,
                 website TEXT,
                 company TEXT,
+                country TEXT,
+                profile_link TEXT,
                 socials TEXT,
                 nature TEXT,
                 work_nature TEXT,
@@ -27,6 +29,25 @@ async function initDB() {
                 next_follow_up TEXT,
                 notes TEXT,
                 created_at TEXT
+            )
+        `);
+        
+        // Add columns if they don't exist (Migration)
+        try {
+            await db.execute("ALTER TABLE leads ADD COLUMN country TEXT");
+        } catch (e) {}
+        try {
+            await db.execute("ALTER TABLE leads ADD COLUMN profile_link TEXT");
+        } catch (e) {}
+
+        // Create Settings Table
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS settings (
+                id TEXT PRIMARY KEY,
+                smtp_host TEXT,
+                smtp_user TEXT,
+                smtp_pass TEXT,
+                sender_name TEXT
             )
         `);
         console.log("Database initialized");
