@@ -29,6 +29,7 @@
                 <header>
                     <h1>Dashboard</h1>
                     <div class="header-actions">
+                    <button id="syncRepliesBtn" class="btn-secondary" title="Check for email replies"><i class="fas fa-sync"></i> Sync Replies</button>
                     <button id="exportBtn" class="btn-secondary"><i class="fas fa-file-export"></i> Export CSV</button>
                     <button id="addLeadBtn" class="btn-primary"><i class="fas fa-plus"></i> Add New Lead</button>
                 </div>
@@ -135,6 +136,22 @@
                             <label for="smtpKey">SMTP Key (Master Password)</label>
                             <input type="password" id="smtpKey" placeholder="xsmtpsib-..." required>
                         </div>
+
+                        <!-- IMAP Settings -->
+                        <div style="margin: 20px 0; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                            <h4>Incoming Mail (IMAP)</h4>
+                            <p class="text-muted" style="font-size: 13px; margin-bottom: 15px;">Required to track replies from leads.</p>
+                            
+                            <div class="form-group">
+                                <label for="imapHost">IMAP Host</label>
+                                <input type="text" id="imapHost" placeholder="imap.brevo.com" value="imap.brevo.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="imapPort">IMAP Port</label>
+                                <input type="number" id="imapPort" placeholder="993" value="993">
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label for="senderEmail">Sender Email (From Address)</label>
                             <input type="email" id="senderEmail" placeholder="verified@company.com" required>

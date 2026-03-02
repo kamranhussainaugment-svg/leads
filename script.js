@@ -77,6 +77,12 @@ async function initDB() {
             console.error("Migration error", e);
         }
 
+        // Migration for IMAP
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT");
+            await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT");
+        } catch (e) {}
+ 
         console.log("Database initialized");
         await loadSettings(); // Load settings first
         renderLeads(); // Load data after DB is ready
@@ -393,6 +399,8 @@ async function loadSettings() {
             emailSettings = {
                 smtpUser: row.smtp_user,
                 smtpKey: row.smtp_key,
+                imapHost: row.imap_host,
+                imapPort: row.imap_port,
                 senderEmail: row.sender_email,
                 senderName: row.sender_name
             };
@@ -402,6 +410,8 @@ async function loadSettings() {
             if (document.getElementById('smtpUser')) {
                 document.getElementById('smtpUser').value = emailSettings.smtpUser || '';
                 document.getElementById('smtpKey').value = emailSettings.smtpKey || '';
+                document.getElementById('imapHost').value = emailSettings.imapHost || 'imap.brevo.com';
+                document.getElementById('imapPort').value = emailSettings.imapPort || '993';
                 document.getElementById('senderEmail').value = emailSettings.senderEmail || '';
                 document.getElementById('senderName').value = emailSettings.senderName || '';
             }
@@ -415,6 +425,8 @@ async function saveSettings() {
     const newSettings = {
         smtpUser: document.getElementById('smtpUser').value,
         smtpKey: document.getElementById('smtpKey').value,
+        imapHost: document.getElementById('imapHost').value,
+        imapPort: document.getElementById('imapPort').value,
         senderEmail: document.getElementById('senderEmail').value,
         senderName: document.getElementById('senderName').value
     };
@@ -425,8 +437,8 @@ async function saveSettings() {
         if (check.rows.length > 0) {
             try {
                 await db.execute({
-                    sql: "UPDATE settings SET smtp_user=?, smtp_key=?, sender_email=?, sender_name=? WHERE id='default'",
-                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                    sql: "UPDATE settings SET smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
+                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                 });
             } catch (updateError) {
                 // If update fails due to missing column, try to migrate and retry
@@ -434,11 +446,13 @@ async function saveSettings() {
                     console.log("Missing columns detected during save, attempting repair...");
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT"); } catch(e) {}
                     
                     // Retry update
                     await db.execute({
-                        sql: "UPDATE settings SET smtp_user=?, smtp_key=?, sender_email=?, sender_name=? WHERE id='default'",
-                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                        sql: "UPDATE settings SET smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
+                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                     });
                 } else {
                     throw updateError;
@@ -448,19 +462,21 @@ async function saveSettings() {
             // Same check for INSERT
              try {
                 await db.execute({
-                    sql: "INSERT INTO settings (id, smtp_user, smtp_key, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?)",
-                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                    sql: "INSERT INTO settings (id, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?)",
+                    args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                 });
             } catch (insertError) {
                 if (insertError.message.includes("no such column")) {
                     console.log("Missing columns detected during insert, attempting repair...");
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT"); } catch(e) {}
                     
                     // Retry insert
                     await db.execute({
-                        sql: "INSERT INTO settings (id, smtp_user, smtp_key, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?)",
-                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.senderEmail, newSettings.senderName]
+                        sql: "INSERT INTO settings (id, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?)",
+                        args: [newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
                     });
                 } else {
                     throw insertError;
@@ -772,4 +788,81 @@ function exportToCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+async function syncReplies() {
+    if (!emailSettings.smtpUser || !emailSettings.smtpKey) {
+        alert('Please configure SMTP settings first to check for replies.');
+        switchView('settings');
+        return;
+    }
+
+    const btn = document.getElementById('syncRepliesBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+    btn.disabled = true;
+
+    try {
+        // Collect all lead emails to filter relevant replies
+        const leadEmails = leads.map(l => l.email).filter(e => e);
+        
+        const response = await fetch('/api/check-replies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                smtpUser: emailSettings.smtpUser,
+                smtpKey: emailSettings.smtpKey,
+                imapHost: emailSettings.imapHost || 'imap.brevo.com',
+                imapPort: emailSettings.imapPort || 993,
+                leadsEmails: leadEmails
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            let newRepliesCount = 0;
+            
+            for (const reply of result.replies) {
+                // Find the lead
+                const lead = leads.find(l => l.email.toLowerCase() === reply.from.toLowerCase());
+                
+                if (lead) {
+                    // Check if note already exists (simple check by date/subject to avoid dupes)
+                    const noteExists = lead.notes && lead.notes.some(n => 
+                        n.text.includes(reply.subject) && n.date === reply.date
+                    );
+
+                    if (!noteExists) {
+                        const noteText = `[Email Reply] Subject: ${reply.subject}\n\n${reply.body}`;
+                        await addNote(lead.id, noteText);
+                        
+                        // Optionally update status to "Contacted" or "Negotiation" if it was "New"
+                        if (lead.status === 'New' || lead.status === 'Contacted') {
+                             // We could auto-update status here
+                        }
+                        newRepliesCount++;
+                    }
+                }
+            }
+
+            if (newRepliesCount > 0) {
+                alert(`Sync Complete! Found ${newRepliesCount} new replies from leads.`);
+                renderLeads(); // Refresh UI
+            } else {
+                alert('Sync Complete. No new replies found from existing leads.');
+            }
+
+        } else {
+            console.error("Sync Error:", result);
+            alert(`Sync Failed: ${result.error}`);
+        }
+
+    } catch (error) {
+        console.error("Sync Network Error:", error);
+        alert("Failed to sync replies. Check console.");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 }

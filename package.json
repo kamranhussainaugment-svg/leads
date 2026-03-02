@@ -10,6 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "nodemailer": "^6.9.13"
+    "nodemailer": "^6.9.13",
+    "imap-simple": "^5.1.0",
+    "mailparser": "^3.7.1"
   }
 }
