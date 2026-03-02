@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Management Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://smtpjs.com/v3/smtp.js"></script>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>LeadManager</h2>
+            </div>
+            <nav>
+                <ul>
+                    <li class="active" onclick="switchView('dashboard')"><a href="#"><i class="fas fa-home"></i> Dashboard</a></li>
+                    <li onclick="switchView('campaigns')"><a href="#"><i class="fas fa-paper-plane"></i> Campaigns</a></li>
+                    <li onclick="switchView('settings')"><a href="#"><i class="fas fa-cog"></i> Settings</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <!-- Dashboard View -->
+            <section id="dashboard-view">
+                <header>
+                    <h1>Dashboard</h1>
+                    <div class="header-actions">
+                    <button id="exportBtn" class="btn-secondary"><i class="fas fa-file-export"></i> Export CSV</button>
+                    <button id="addLeadBtn" class="btn-primary"><i class="fas fa-plus"></i> Add New Lead</button>
+                </div>
+            </header>
+
+            <div class="stats-container">
+                <div class="card stat-card">
+                    <h3>Total Leads</h3>
+                    <p id="totalLeads">0</p>
+                </div>
+                <div class="card stat-card">
+                    <h3>Active Opportunities</h3>
+                    <p id="activeLeads">0</p>
+                </div>
+                <div class="card stat-card">
+                    <h3>Closed Won</h3>
+                    <p id="closedWon">0</p>
+                </div>
+            </div>
+
+            <div class="leads-container">
+                <div class="table-header">
+                    <h2>Recent Leads</h2>
+                    <div class="filter-actions">
+                        <select id="statusFilter">
+                            <option value="All">All Statuses</option>
+                            <option value="New">New</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Qualified">Qualified</option>
+                            <option value="Proposal">Proposal</option>
+                            <option value="Negotiation">Negotiation</option>
+                            <option value="Won">Closed Won</option>
+                            <option value="Lost">Closed Lost</option>
+                        </select>
+                        <div class="search-bar">
+                            <input type="text" id="searchInput" placeholder="Search leads...">
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table id="leadsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Company</th>
+                                <th>Status</th>
+                                <th>Next Follow-up</th>
+                                <th>Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leadsList">
+                            <!-- Leads will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Campaigns View -->
+            <section id="campaigns-view" style="display: none;">
+                <header>
+                    <h1>Email Campaigns</h1>
+                    <button id="createCampaignBtn" class="btn-primary"><i class="fas fa-plus"></i> New Campaign</button>
+                </header>
+
+                <div class="campaigns-container">
+                    <div class="table-responsive">
+                        <table id="campaignsTable">
+                            <thead>
+                                <tr>
+                                    <th>Campaign Name</th>
+                                    <th>Subject</th>
+                                    <th>Status</th>
+                                    <th>Sent Date</th>
+                                    <th>Recipients</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="campaignsList">
+                                <!-- Campaigns will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="settings-view" style="display: none;">
+                <header>
+                    <h1>Settings</h1>
+                </header>
+
+                <div class="card" style="max-width: 600px;">
+                    <h3>SMTP Configuration</h3>
+                    <p class="text-muted" style="margin-bottom: 20px; font-size: 13px;">
+                        Configure your SMTP server details here. We use <strong>SmtpJS</strong> to relay emails directly from the browser.
+                        <br><strong style="color: var(--warning-color);">Note:</strong> Ensure your SMTP provider (like Brevo) allows connections from "smtpjs.com".
+                    </p>
+                    <form id="settingsForm">
+                        <div class="form-group">
+                            <label for="smtpHost">SMTP Host</label>
+                            <input type="text" id="smtpHost" value="smtp-relay.brevo.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="smtpUser">SMTP Login/Email</label>
+                            <input type="email" id="smtpUser" placeholder="your-email@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="smtpPass">SMTP Password / Key</label>
+                            <input type="password" id="smtpPass" placeholder="xsmtpsib-..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="senderName">Default Sender Name</label>
+                            <input type="text" id="senderName" placeholder="My Company">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save Settings</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for Create/Edit Lead -->
+    <div id="leadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Add New Lead</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="leadForm">
+                    <input type="hidden" id="leadId">
+                    
+                    <div class="form-group">
+                        <label for="name">Name *</label>
+                        <input type="text" id="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Phone</label>
+                        <input type="tel" id="phone">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="website">Website</label>
+                        <input type="url" id="website" placeholder="https://example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="company">Company (Main)</label>
+                        <input type="text" id="company">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="socials">Socials</label>
+                        <input type="text" id="socials" placeholder="LinkedIn, Twitter, etc.">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="status">Status</label>
+                        <select id="status">
+                            <option value="New">New</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Qualified">Qualified</option>
+                            <option value="Proposal">Proposal</option>
+                            <option value="Negotiation">Negotiation</option>
+                            <option value="Won">Closed Won</option>
+                            <option value="Lost">Closed Lost</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nextFollowUp">Next Follow-up</label>
+                        <input type="date" id="nextFollowUp">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nature">Nature *</label>
+                        <select id="nature" required>
+                            <option value="">Select Nature</option>
+                            <option value="Client">Client</option>
+                            <option value="Agency">Agency</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="workNatureGroup" style="display: none;">
+                        <label for="workNature">Nature of Work</label>
+                        <select id="workNature">
+                            <option value="">Select Work</option>
+                            <option value="SEO">SEO</option>
+                            <option value="Redesign">Redesign</option>
+                            <option value="Development">Development</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="cancelBtn">Cancel</button>
+                        <button type="submit" class="btn-primary">Save Lead</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for View/Notes -->
+    <div id="notesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Lead Details & Notes</h2>
+                <span class="close-notes">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="leadDetails" class="lead-details-view">
+                    <!-- Details populated by JS -->
+                </div>
+                
+                <div class="notes-section">
+                    <h3>Notes History</h3>
+                    <div id="notesList" class="notes-list">
+                        <!-- Notes populated by JS -->
+                    </div>
+                    <div class="add-note-form">
+                        <textarea id="newNoteText" placeholder="Add a new note..." rows="3"></textarea>
+                        <button id="addNoteBtn" class="btn-primary btn-sm">Add Note</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campaign Modal -->
+    <div id="campaignModal" class="modal">
+        <div class="modal-content" style="width: 700px;">
+            <div class="modal-header">
+                <h2>New Email Campaign</h2>
+                <span class="close-campaign">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="campaignForm">
+                    <div class="form-group">
+                        <label for="campaignName">Campaign Name (Internal)</label>
+                        <input type="text" id="campaignName" placeholder="e.g. March Newsletter" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="emailSubject">Email Subject</label>
+                        <input type="text" id="emailSubject" placeholder="Hello {name}, check this out!" required>
+                        <small class="text-muted">Available variables: {name}, {company}</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="targetAudience">Target Audience</label>
+                        <select id="targetAudience">
+                            <option value="All">All Leads</option>
+                            <option value="Client">Clients Only</option>
+                            <option value="Agency">Agencies Only</option>
+                            <option value="New">Status: New</option>
+                            <option value="Qualified">Status: Qualified</option>
+                        </select>
+                        <div id="recipientCount" style="margin-top: 5px; font-size: 13px; color: var(--info-color);"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="emailBody">Email Message</label>
+                        <textarea id="emailBody" rows="10" placeholder="Hi {name}, ..." required></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="cancelCampaignBtn">Cancel</button>
+                        <button type="submit" class="btn-primary"><i class="fas fa-paper-plane"></i> Send Campaign</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sending Progress Modal -->
+    <div id="sendingModal" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="width: 400px; text-align: center;">
+            <div class="modal-body">
+                <h3>Sending Campaign...</h3>
+                <p id="sendingStatus">Preparing...</p>
+                <div class="progress-bar-container" style="width: 100%; background: #eee; height: 10px; border-radius: 5px; margin: 15px 0;">
+                    <div id="progressBar" style="width: 0%; background: var(--primary-color); height: 100%; border-radius: 5px; transition: width 0.3s;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
