@@ -32,13 +32,15 @@ async function initDB() {
             )
         `);
         
+        // Helper to safely add columns
+        const addCol = async (table, col) => {
+            try { await db.execute(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`); } 
+            catch (e) { if (!e.message?.includes('duplicate column')) console.log(`Migration info (${col}):`, e.message); }
+        };
+
         // Add columns if they don't exist (Migration)
-        try {
-            await db.execute("ALTER TABLE leads ADD COLUMN country TEXT");
-        } catch (e) {}
-        try {
-            await db.execute("ALTER TABLE leads ADD COLUMN profile_link TEXT");
-        } catch (e) {}
+        await addCol('leads', 'country');
+        await addCol('leads', 'profile_link');
 
         // Create Settings Table
         await db.execute(`
@@ -51,37 +53,22 @@ async function initDB() {
                 api_key TEXT,
                 sender_email TEXT,
                 smtp_user TEXT,
-                smtp_key TEXT
+                smtp_key TEXT,
+                imap_host TEXT,
+                imap_port TEXT
             )
         `);
         
-        // Migration: Check if we need to drop old settings table or alter it
-        try {
-            await db.execute("ALTER TABLE settings ADD COLUMN service_id TEXT");
-            await db.execute("ALTER TABLE settings ADD COLUMN template_id TEXT");
-            await db.execute("ALTER TABLE settings ADD COLUMN public_key TEXT");
-        } catch (e) {}
-
-        // Migration for Brevo
-        try {
-            await db.execute("ALTER TABLE settings ADD COLUMN api_key TEXT");
-            await db.execute("ALTER TABLE settings ADD COLUMN sender_email TEXT");
-        } catch (e) {}
-        
-        // Migration for SMTP (User/Pass)
-        try {
-            // Try adding columns one by one and log errors
-            try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_user TEXT"); } catch(e) { console.log("smtp_user col exists or error", e); }
-            try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) { console.log("smtp_key col exists or error", e); }
-        } catch (e) {
-            console.error("Migration error", e);
-        }
-
-        // Migration for IMAP
-        try {
-            await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT");
-            await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT");
-        } catch (e) {}
+        // Settings Migrations
+        await addCol('settings', 'service_id');
+        await addCol('settings', 'template_id');
+        await addCol('settings', 'public_key');
+        await addCol('settings', 'api_key');
+        await addCol('settings', 'sender_email');
+        await addCol('settings', 'smtp_user');
+        await addCol('settings', 'smtp_key');
+        await addCol('settings', 'imap_host');
+        await addCol('settings', 'imap_port');
  
         console.log("Database initialized");
         await loadSettings(); // Load settings first
