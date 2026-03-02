@@ -112,80 +112,58 @@ const campaignModal = document.getElementById('campaignModal');
 const sendingModal = document.getElementById('sendingModal');
 const addLeadBtn = document.getElementById('addLeadBtn');
 const exportBtn = document.getElementById('exportBtn');
+const syncRepliesBtn = document.getElementById('syncRepliesBtn');
 const createCampaignBtn = document.getElementById('createCampaignBtn');
 const cancelBtn = document.getElementById('cancelBtn');
 const cancelCampaignBtn = document.getElementById('cancelCampaignBtn');
 const closeModal = document.querySelector('.close');
 const closeNotesModal = document.querySelector('.close-notes');
 const closeCampaignModal = document.querySelector('.close-campaign');
-const leadsList = document.getElementById('leadsList');
-const campaignsList = document.getElementById('campaignsList');
-const searchInput = document.getElementById('searchInput');
-const statusFilter = document.getElementById('statusFilter');
-const natureSelect = document.getElementById('nature');
-const workNatureGroup = document.getElementById('workNatureGroup');
-const modalTitle = document.getElementById('modalTitle');
-const addNoteBtn = document.getElementById('addNoteBtn');
-const newNoteText = document.getElementById('newNoteText');
-const notesList = document.getElementById('notesList');
-const leadDetails = document.getElementById('leadDetails');
 
-// Tag Input Elements
-const socialsContainer = document.getElementById('socialsContainer');
-const socialsInput = document.getElementById('socialsInput');
-const socialsHidden = document.getElementById('socials');
-let socialTags = [];
-
-const campaignForm = document.getElementById('campaignForm');
-const targetAudience = document.getElementById('targetAudience');
-const recipientCount = document.getElementById('recipientCount');
-const settingsForm = document.getElementById('settingsForm');
-
-// Scraper Elements
-const startScrapeBtn = document.getElementById('startScrapeBtn');
-const scraperForm = document.getElementById('scraperForm');
-const scraperResultsContainer = document.querySelector('.scraper-results-container');
-const scraperList = document.getElementById('scraperList');
-const importLeadsBtn = document.getElementById('importLeadsBtn');
-const selectAllScraped = document.getElementById('selectAllScraped');
-const foundCount = document.getElementById('foundCount');
-let scrapedLeads = []; // Store scraped data temporarily
-
-// Views
-const views = {
-    dashboard: document.getElementById('dashboard-view'),
-    campaigns: document.getElementById('campaigns-view'),
-    scraper: document.getElementById('scraper-view'),
-    settings: document.getElementById('settings-view')
-};
-
-// Stats Elements
-const totalLeadsEl = document.getElementById('totalLeads');
-const activeLeadsEl = document.getElementById('activeLeads');
-const closedWonEl = document.getElementById('closedWon');
-
-// State
-let leads = []; // Will be populated from DB
-let campaigns = JSON.parse(localStorage.getItem('campaigns')) || [];
-let emailSettings = JSON.parse(localStorage.getItem('emailSettings')) || {};
-let isEditing = false;
-let currentViewLeadId = null;
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    initDB(); // Initialize DB and load leads/settings
-    renderCampaigns();
-});
+// ... existing code ...
 
 // Event Listeners
 addLeadBtn.addEventListener('click', () => openModal());
 createCampaignBtn.addEventListener('click', () => openCampaignModal());
 exportBtn.addEventListener('click', exportToCSV);
+syncRepliesBtn.addEventListener('click', syncReplies);
 cancelBtn.addEventListener('click', closeModalFn);
 cancelCampaignBtn.addEventListener('click', closeCampaignModalFn);
 closeModal.addEventListener('click', closeModalFn);
 closeNotesModal.addEventListener('click', closeNotesModalFn);
 closeCampaignModal.addEventListener('click', closeCampaignModalFn);
+
+// Helper functions (defined before usage)
+function switchView(viewName) {
+    // Hide all views
+    Object.values(views).forEach(el => el.style.display = 'none');
+    // Show selected view
+    if (views[viewName]) {
+        views[viewName].style.display = 'block';
+    }
+    
+    // Update active state in sidebar
+    document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+    const activeLi = document.querySelector(`.sidebar li[onclick*="'${viewName}'"]`);
+    if (activeLi) activeLi.classList.add('active');
+
+    // Update active state in bottom nav
+    document.querySelectorAll('.bottom-nav-item').forEach(div => div.classList.remove('active'));
+    const activeDiv = document.querySelector(`.bottom-nav-item[onclick*="'${viewName}'"]`);
+    if (activeDiv) activeDiv.classList.add('active');
+}
+
+// Make global so HTML onclick works
+window.switchView = switchView;
+
+function openCampaignModal() {
+    campaignModal.style.display = 'block';
+    updateRecipientCount(); // Update initial count
+}
+
+function closeCampaignModalFn() {
+    campaignModal.style.display = 'none';
+}
 
 window.addEventListener('click', (e) => {
     if (e.target === modal) closeModalFn();
@@ -228,6 +206,15 @@ selectAllScraped.addEventListener('change', (e) => {
     checkboxes.forEach(cb => cb.checked = e.target.checked);
     updateImportButton();
 });
+
+function updateImportButton() {
+    const checked = document.querySelectorAll('.scrape-checkbox:checked:not([disabled])');
+    importLeadsBtn.disabled = checked.length === 0;
+    importLeadsBtn.textContent = `Import Selected (${checked.length})`;
+}
+
+// Tag Input Logic
+socialsContainer.addEventListener('click', () => socialsInput.focus());
 
 function updateRecipientCount() {
     // Get selected values from multi-select
