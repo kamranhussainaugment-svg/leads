@@ -342,6 +342,18 @@ async function sendCampaign() {
             if (response.ok && result.success) {
                 successCount++;
                 console.log(`[SMTP] Sent to ${lead.email}`);
+                
+                // Update Lead Status to "Contacted" if it's currently "New"
+                if (lead.status === 'New') {
+                    lead.status = 'Contacted';
+                    try {
+                        await db.execute({
+                            sql: "UPDATE leads SET status = ? WHERE id = ?",
+                            args: ['Contacted', lead.id]
+                        });
+                    } catch(e) { console.error("Status Update Error", e); }
+                }
+
             } else {
                 failCount++;
                 console.error(`[SMTP Error] ${lead.email}:`, result);
@@ -424,7 +436,8 @@ window.refreshCampaignStats = async function(campaignId) {
     icon.classList.add('fa-spin');
 
     try {
-        const response = await fetch('/api/get-stats', {
+        // 1. Fetch Aggregated Stats
+        const statsResponse = await fetch('/api/get-stats', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -433,20 +446,73 @@ window.refreshCampaignStats = async function(campaignId) {
             })
         });
 
-        const result = await response.json();
+        const statsResult = await statsResponse.json();
 
-        if (response.ok && result.success) {
+        if (statsResponse.ok && statsResult.success) {
             // Update campaign stats in local storage
             const campaignIndex = campaigns.findIndex(c => c.id === campaignId);
             if (campaignIndex !== -1) {
-                campaigns[campaignIndex].stats = result.stats;
+                campaigns[campaignIndex].stats = statsResult.stats;
                 localStorage.setItem('campaigns', JSON.stringify(campaigns));
-                renderCampaigns();
             }
-        } else {
-            console.error("Stats Error:", result);
-            alert("Failed to fetch stats: " + (result.error || "Unknown error"));
         }
+
+        // 2. Fetch Granular Events to Update Lead Status
+        const eventsResponse = await fetch('/api/get-events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                apiKey: emailSettings.apiKey,
+                tag: campaignId
+            })
+        });
+
+        const eventsResult = await eventsResponse.json();
+
+        if (eventsResponse.ok && eventsResult.success && eventsResult.events.length > 0) {
+            let updatedLeads = 0;
+            
+            // Process events
+            // Priority: Clicked > Opened > Bounced > Contacted
+            for (const event of eventsResult.events) {
+                const lead = leads.find(l => l.email.toLowerCase() === event.email.toLowerCase());
+                
+                if (lead) {
+                    let newStatus = null;
+                    
+                    if (event.event === 'clicks') {
+                        if (lead.status !== 'Lead Clicked' && lead.status !== 'Qualified' && lead.status !== 'Proposal' && lead.status !== 'Won') {
+                            newStatus = 'Lead Clicked';
+                        }
+                    } else if (event.event === 'opened') {
+                        if (lead.status !== 'Lead Clicked' && lead.status !== 'Email Opened' && lead.status !== 'Qualified' && lead.status !== 'Proposal' && lead.status !== 'Won') {
+                            newStatus = 'Email Opened';
+                        }
+                    } else if (event.event === 'hardBounce' || event.event === 'softBounce' || event.event === 'blocked') {
+                        if (lead.status !== 'Bounced') {
+                            newStatus = 'Bounced';
+                        }
+                    }
+
+                    if (newStatus) {
+                        lead.status = newStatus;
+                        await db.execute({
+                            sql: "UPDATE leads SET status = ? WHERE id = ?",
+                            args: [newStatus, lead.id]
+                        });
+                        updatedLeads++;
+                    }
+                }
+            }
+            
+            if (updatedLeads > 0) {
+                alert(`Stats Updated. Also updated status for ${updatedLeads} leads based on interactions!`);
+            }
+        }
+
+        renderCampaigns();
+        renderLeads(); // Refresh leads table to show new statuses
+
     } catch (error) {
         console.error("Network Error:", error);
         alert("Network error while fetching stats.");
