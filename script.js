@@ -120,6 +120,65 @@ const closeModal = document.querySelector('.close');
 const closeNotesModal = document.querySelector('.close-notes');
 const closeCampaignModal = document.querySelector('.close-campaign');
 
+const leadsList = document.getElementById('leadsList');
+const campaignsList = document.getElementById('campaignsList');
+const searchInput = document.getElementById('searchInput');
+const statusFilter = document.getElementById('statusFilter');
+const natureSelect = document.getElementById('nature');
+const workNatureGroup = document.getElementById('workNatureGroup');
+const modalTitle = document.getElementById('modalTitle');
+const addNoteBtn = document.getElementById('addNoteBtn');
+const newNoteText = document.getElementById('newNoteText');
+const notesList = document.getElementById('notesList');
+const leadDetails = document.getElementById('leadDetails');
+
+// Tag Input Elements
+const socialsContainer = document.getElementById('socialsContainer');
+const socialsInput = document.getElementById('socialsInput');
+const socialsHidden = document.getElementById('socials');
+let socialTags = [];
+
+const campaignForm = document.getElementById('campaignForm');
+const targetAudience = document.getElementById('targetAudience');
+const recipientCount = document.getElementById('recipientCount');
+const settingsForm = document.getElementById('settingsForm');
+
+// Scraper Elements
+const startScrapeBtn = document.getElementById('startScrapeBtn');
+const scraperForm = document.getElementById('scraperForm');
+const scraperResultsContainer = document.querySelector('.scraper-results-container');
+const scraperList = document.getElementById('scraperList');
+const importLeadsBtn = document.getElementById('importLeadsBtn');
+const selectAllScraped = document.getElementById('selectAllScraped');
+const foundCount = document.getElementById('foundCount');
+let scrapedLeads = []; // Store scraped data temporarily
+
+// Views
+const views = {
+    dashboard: document.getElementById('dashboard-view'),
+    campaigns: document.getElementById('campaigns-view'),
+    scraper: document.getElementById('scraper-view'),
+    settings: document.getElementById('settings-view')
+};
+
+// Stats Elements
+const totalLeadsEl = document.getElementById('totalLeads');
+const activeLeadsEl = document.getElementById('activeLeads');
+const closedWonEl = document.getElementById('closedWon');
+
+// State
+let leads = []; // Will be populated from DB
+let campaigns = JSON.parse(localStorage.getItem('campaigns')) || [];
+let emailSettings = JSON.parse(localStorage.getItem('emailSettings')) || {};
+let isEditing = false;
+let currentViewLeadId = null;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    initDB(); // Initialize DB and load leads/settings
+    renderCampaigns();
+});
+
 // ... existing code ...
 
 // Event Listeners
