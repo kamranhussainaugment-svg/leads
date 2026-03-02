@@ -129,6 +129,13 @@ const addNoteBtn = document.getElementById('addNoteBtn');
 const newNoteText = document.getElementById('newNoteText');
 const notesList = document.getElementById('notesList');
 const leadDetails = document.getElementById('leadDetails');
+
+// Tag Input Elements
+const socialsContainer = document.getElementById('socialsContainer');
+const socialsInput = document.getElementById('socialsInput');
+const socialsHidden = document.getElementById('socials');
+let socialTags = [];
+
 const campaignForm = document.getElementById('campaignForm');
 const targetAudience = document.getElementById('targetAudience');
 const recipientCount = document.getElementById('recipientCount');
@@ -219,56 +226,8 @@ importLeadsBtn.addEventListener('click', importSelectedLeads);
 selectAllScraped.addEventListener('change', (e) => {
     const checkboxes = document.querySelectorAll('.scrape-checkbox');
     checkboxes.forEach(cb => cb.checked = e.target.checked);
-    updateImportButton();
-});
-
-addNoteBtn.addEventListener('click', () => {
-    const text = newNoteText.value.trim();
-    if (text && currentViewLeadId) {
-        addNote(currentViewLeadId, text);
-        newNoteText.value = '';
-    }
-});
-
-targetAudience.addEventListener('change', updateRecipientCount);
-
-// Navigation Function (Exposed to window)
-window.switchView = function(viewName) {
-    // Update desktop menu active state
-    document.querySelectorAll('.sidebar nav li').forEach(li => li.classList.remove('active'));
-    const desktopNavItem = document.querySelector(`.sidebar nav li[onclick="switchView('${viewName}')"]`);
-    if (desktopNavItem) desktopNavItem.classList.add('active');
-
-    // Update mobile bottom nav active state
-    document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
-    const mobileNavItem = document.querySelector(`.bottom-nav-item[onclick="switchView('${viewName}')"]`);
-    if (mobileNavItem) mobileNavItem.classList.add('active');
-
-    // Show/Hide views
-    Object.keys(views).forEach(key => {
-        views[key].style.display = key === viewName ? 'block' : 'none';
-    });
+    updateImportBm./ Skey => {
 }
-
-// Expose other functions needed by HTML inline handlers if any
-// (Most are now event listeners, but keeping these just in case)
-window.editLead = editLead;
-window.deleteLead = deleteLead;
-window.viewLead = viewLead;
-window.deleteCampaign = deleteCampaign;
-
-
-// Campaign Functions
-function openCampaignModal() {
-    campaignModal.style.display = 'block';
-    campaignForm.reset();
-    updateRecipientCount();
-}
-
-function closeCampaignModalFn() {
-    campaignModal.style.display = 'none';
-}
-
 function updateRecipientCount() {
     // Get selected values from multi-select
     const selectedOptions = Array.from(targetAudience.selectedOptions).map(opt => opt.value).filter(v => v !== 'All');
@@ -703,6 +662,11 @@ function openModal(lead = null) {
         document.getElementById('city').value = '';
         document.getElementById('country').value = '';
         document.getElementById('status').value = 'New';
+        
+        // Reset tags
+        socialTags = [];
+        renderSocialTags();
+        updateHiddenSocials();
     }
 }
 
@@ -734,7 +698,9 @@ async function saveLead() {
         phone: document.getElementById('phone').value,
         website: document.getElementById('website').value,
         company: document.getElementById('company').value,
-        socials: document.getElementById('socials').value,
+        country: document.getElementById('country').value,
+        city: document.getElementById('city').value,
+        socials: document.getElementById('socialsHidden').value, // Use the hidden input which contains JSON string
         nature: document.getElementById('nature').value,
         workNature: document.getElementById('workNature').value,
         status: document.getElementById('status').value,
@@ -805,14 +771,32 @@ function viewLead(id) {
     const lead = leads.find(l => l.id === id);
     currentViewLeadId = id;
     
+    // Format socials for display
+    let socialsHtml = '-';
+    try {
+        const tags = lead.socials ? JSON.parse(lead.socials) : [];
+        if (Array.isArray(tags) && tags.length > 0) {
+            socialsHtml = tags.map(t => {
+                const url = t.startsWith('http') ? t : `https://${t}`;
+                return `<a href="${url}" target="_blank" class="badge badge-agency" style="margin-right: 5px; text-decoration: none;">${new URL(url).hostname.replace('www.','')}</a>`;
+            }).join('');
+        } else if (typeof tags === 'string' && tags) {
+             // Legacy fallback
+             socialsHtml = tags;
+        }
+    } catch (e) {
+        socialsHtml = lead.socials || '-';
+    }
+
     // Populate details
     leadDetails.innerHTML = `
         <div class="lead-detail-row"><span class="lead-detail-label">Name:</span> ${lead.name}</div>
         <div class="lead-detail-row"><span class="lead-detail-label">Company:</span> ${lead.company}</div>
         <div class="lead-detail-row"><span class="lead-detail-label">Email:</span> <a href="mailto:${lead.email}">${lead.email}</a></div>
         <div class="lead-detail-row"><span class="lead-detail-label">Phone:</span> ${lead.phone}</div>
+        <div class="lead-detail-row"><span class="lead-detail-label">Location:</span> ${lead.city ? lead.city + ', ' : ''}${lead.country || '-'}</div>
         <div class="lead-detail-row"><span class="lead-detail-label">Website:</span> <a href="${lead.website}" target="_blank">${lead.website}</a></div>
-        <div class="lead-detail-row"><span class="lead-detail-label">Socials:</span> ${lead.socials}</div>
+        <div class="lead-detail-row"><span class="lead-detail-label">Socials:</span> ${socialsHtml}</div>
         <div class="lead-detail-row"><span class="lead-detail-label">Type:</span> ${lead.nature} ${lead.workNature ? `(${lead.workNature})` : ''}</div>
         <div class="lead-detail-row"><span class="lead-detail-label">Status:</span> ${lead.status}</div>
         <div class="lead-detail-row"><span class="lead-detail-label">Next Follow-up:</span> ${lead.nextFollowUp || 'Not scheduled'}</div>
