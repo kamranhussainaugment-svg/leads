@@ -249,115 +249,11 @@ statusFilter.addEventListener('change', () => renderLeads());
 
 
 
-    // UI Feedback
-    const originalText = startScrapeBtn.innerHTML;
-    startScrapeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching...';
-    startScrapeBtn.disabled = true;
-    scraperResultsContainer.style.display = 'none';
-    scrapedLeads = [];
-    scraperList.innerHTML = '';
-
-    try {
-        const response = await fetch('/api/scrape-leads', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ niche, city, country, pages })
-        });
-
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            scrapedLeads = result.leads;
-            foundCount.textContent = scrapedLeads.length;
-            renderScraperResults();
-            scraperResultsContainer.style.display = 'block';
-            
-            if (scrapedLeads.length === 0) {
-                alert("No leads found. Try different keywords or check if Google is blocking requests.");
-            }
-        } else {
-            // Handle specific error messages
-            if (response.status === 429) {
-                alert("Google blocked the request (Too Many Requests). Please try again later or use fewer pages.");
-            } else {
-                alert("Scraping failed: " + (result.error || "Unknown error"));
-            }
-        }
-    } catch (error) {
-        console.error("Scraper Error:", error);
-        alert("Network error during scraping.");
-    } finally {
-        startScrapeBtn.innerHTML = originalText;
-        startScrapeBtn.disabled = false;
-    }
-}
 
 
 
-async function importSelectedLeads() {
-    const checkboxes = document.querySelectorAll('.scrape-checkbox:checked:not([disabled])');
-    const leadsToImport = Array.from(checkboxes).map(cb => scrapedLeads[cb.dataset.index]);
-    
-    if (leadsToImport.length === 0) return;
 
-    if (!confirm(`Import ${leadsToImport.length} leads?`)) return;
 
-    importLeadsBtn.disabled = true;
-    importLeadsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
-
-    let successCount = 0;
-    
-    for (const lead of leadsToImport) {
-        try {
-            // Construct lead object
-            const leadData = {
-                id: crypto.randomUUID(),
-                name: lead.name,
-                email: lead.email,
-                phone: '',
-                website: '',
-                company: lead.company, // Using search result title as company context
-                country: lead.country,
-                city: lead.city,
-                profile_link: '',
-                socials: '',
-                nature: 'Client', // Default
-                workNature: '',
-                status: 'New',
-                nextFollowUp: '',
-                notes: JSON.stringify([{
-                    id: Date.now().toString(),
-                    text: `Imported via Scraper (Source: ${lead.source}). Search: ${lead.niche}`,
-                    date: new Date().toISOString()
-                }]),
-                createdAt: new Date().toISOString()
-            };
-
-            // Save to DB
-            await db.execute({
-                sql: `INSERT INTO leads (id, name, email, phone, website, company, country, city, socials, nature, work_nature, status, next_follow_up, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [leadData.id, leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.country, leadData.city, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.createdAt]
-            });
-            successCount++;
-
-        } catch (error) {
-            console.error("Import Error for " + lead.email, error);
-        }
-    }
-
-    await renderLeads();
-    updateStats();
-    
-    alert(`Successfully imported ${successCount} leads!`);
-    importLeadsBtn.innerHTML = 'Import Selected';
-    importLeadsBtn.disabled = true;
-    
-    // Disable imported rows
-    checkboxes.forEach(cb => {
-        cb.disabled = true;
-        cb.parentElement.parentElement.style.opacity = '0.5';
-    });
-}
 
 // Tag Input Logic
 socialsContainer.addEventListener('click', (e) => {
