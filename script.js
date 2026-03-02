@@ -815,13 +815,13 @@ async function saveLead() {
     try {
         if (isNew) {
             await db.execute({
-                sql: `INSERT INTO leads (id, name, email, phone, website, company, socials, nature, work_nature, status, next_follow_up, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [leadData.id, leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.createdAt]
+                sql: `INSERT INTO leads (id, name, email, phone, website, company, country, city, socials, nature, work_nature, status, next_follow_up, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                args: [leadData.id, leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.country, leadData.city, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.createdAt]
             });
         } else {
             await db.execute({
-                sql: `UPDATE leads SET name=?, email=?, phone=?, website=?, company=?, socials=?, nature=?, work_nature=?, status=?, next_follow_up=?, notes=? WHERE id=?`,
-                args: [leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.id]
+                sql: `UPDATE leads SET name=?, email=?, phone=?, website=?, company=?, country=?, city=?, socials=?, nature=?, work_nature=?, status=?, next_follow_up=?, notes=? WHERE id=?`,
+                args: [leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.country, leadData.city, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.id]
             });
         }
 
