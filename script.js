@@ -199,6 +199,12 @@ async function sendCampaign() {
         return;
     }
 
+    // Ensure settings are loaded from DB if missing locally
+    if (!smtpSettings.smtpUser || !smtpSettings.smtpPass) {
+        console.log("Settings missing locally, attempting to fetch from Turso...");
+        await loadSettings();
+    }
+
     if (!smtpSettings.smtpUser || !smtpSettings.smtpPass) {
         alert('Please configure SMTP settings first!');
         switchView('settings');
@@ -327,6 +333,7 @@ async function loadSettings() {
                 smtpPass: row.smtp_pass,
                 senderName: row.sender_name
             };
+            console.log("SMTP Settings loaded from Turso database");
             
             // Update UI if elements exist
             if (document.getElementById('smtpUser')) {
