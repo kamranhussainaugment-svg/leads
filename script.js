@@ -11,21 +11,6 @@ const db = createClient({
 
 // Initialize DB
 async function initDB() {
-    // Check for duplicates
-    if (isNew) {
-        const existingEmail = leads.find(l => l.email && l.email.toLowerCase() === leadData.email.toLowerCase());
-        const existingCompany = leadData.company ? leads.find(l => l.company && l.company.toLowerCase() === leadData.company.toLowerCase()) : null;
-
-        if (existingEmail) {
-            alert(`Duplicate Error: A lead with email "${leadData.email}" already exists.`);
-            return;
-        }
-        if (existingCompany) {
-            alert(`Duplicate Error: A lead with company "${leadData.company}" already exists.`);
-            return;
-        }
-    }
-
     try {
         await db.execute(`
             CREATE TABLE IF NOT EXISTS leads (
@@ -653,6 +638,21 @@ async function saveLead() {
         notes: JSON.stringify(currentNotes), // Store notes as JSON string
         createdAt: isNew ? new Date().toISOString() : (leads.find(l => l.id === id)?.createdAt || new Date().toISOString())
     };
+
+    // Check for duplicates
+    if (isNew) {
+        const existingEmail = leads.find(l => l.email && l.email.toLowerCase() === leadData.email.toLowerCase());
+        const existingCompany = leadData.company ? leads.find(l => l.company && l.company.toLowerCase() === leadData.company.toLowerCase()) : null;
+
+        if (existingEmail) {
+            alert(`Duplicate Error: A lead with email "${leadData.email}" already exists.`);
+            return;
+        }
+        if (existingCompany) {
+            alert(`Duplicate Error: A lead with company "${leadData.company}" already exists.`);
+            return;
+        }
+    }
 
     try {
         if (isNew) {
