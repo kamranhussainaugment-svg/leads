@@ -33,7 +33,7 @@ export default async function handler(req, res) {
             // Note: In production, you really need a proxy or SERP API (like SerpApi/BrightData)
             // This is a "best effort" implementation for a personal tool.
             
-            const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&start=${start}`;
+            const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
             
             const response = await axios.get(url, {
                 headers: {
@@ -45,17 +45,12 @@ export default async function handler(req, res) {
 
             const $ = cheerio.load(response.data);
             
-            // Extract text from search results
-            // Google structure changes, but usually results are in div.g or div.tF2Cxc
-            // We'll scan the whole text content of the result snippet
-            
-            // Select result containers
-            // If Google structure: .g contains title (h3) and snippet (.VwiC3b or .st)
-            const results = $('div.g');
+            // Extract text from DuckDuckGo HTML results
+            const results = $('.result');
 
             results.each((index, element) => {
-                const title = $(element).find('h3').first().text();
-                const snippet = $(element).text(); // Grab all text in the result div
+                const title = $(element).find('.result__title').text().trim();
+                const snippet = $(element).find('.result__snippet').text().trim();
                 
                 // Regex for emails
                 const emailRegex = /([a-zA-Z0-9._-]+@(gmail|hotmail|yahoo|outlook|aol|msn)\.com)/gi;
