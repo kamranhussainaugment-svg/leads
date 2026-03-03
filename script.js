@@ -112,6 +112,8 @@ const campaignModal = document.getElementById('campaignModal');
 const sendingModal = document.getElementById('sendingModal');
 const addLeadBtn = document.getElementById('addLeadBtn');
 const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const csvInput = document.getElementById('csvInput');
 const syncRepliesBtn = document.getElementById('syncRepliesBtn');
 const createCampaignBtn = document.getElementById('createCampaignBtn');
 const cancelBtn = document.getElementById('cancelBtn');
@@ -175,6 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
 addLeadBtn.addEventListener('click', () => openModal());
 createCampaignBtn.addEventListener('click', () => openCampaignModal());
 exportBtn.addEventListener('click', exportToCSV);
+importBtn.addEventListener('click', () => csvInput.click());
+csvInput.addEventListener('change', handleCSVImport);
 syncRepliesBtn.addEventListener('click', syncReplies);
 cancelBtn.addEventListener('click', closeModalFn);
 cancelCampaignBtn.addEventListener('click', closeCampaignModalFn);
@@ -788,7 +792,7 @@ async function saveLead() {
         company: document.getElementById('company').value,
         country: document.getElementById('country').value,
         city: document.getElementById('city').value,
-        socials: document.getElementById('socialsHidden').value, // Use the hidden input which contains JSON string
+        socials: document.getElementById('socials').value, // Use the hidden input which contains JSON string
         nature: document.getElementById('nature').value,
         workNature: document.getElementById('workNature').value,
         status: document.getElementById('status').value,
@@ -860,7 +864,6 @@ window.viewLead = viewLead;
 window.editLead = editLead;
 window.deleteLead = deleteLead;
 window.switchView = switchView;
-window.refreshCampaignStats = refreshCampaignStats;
 
 function viewLead(id) {
     const lead = leads.find(l => l.id === id);
@@ -1062,6 +1065,81 @@ function exportToCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+async function handleCSVImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const text = e.target.result;
+        const rows = text.split('\n').map(row => row.split(','));
+        
+        // Remove header row if present (assuming first row is header)
+        if (rows.length > 0 && rows[0][0].toLowerCase().includes('name')) {
+            rows.shift();
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of rows) {
+            if (row.length < 2) continue; // Skip empty rows
+
+            // Simple CSV parsing (this assumes standard CSV without complex quoting)
+            // Mapping: Name, Email, Phone, Website, Company, Country, City, Nature
+            const [name, email, phone, website, company, country, city, nature] = row.map(cell => cell ? cell.trim().replace(/^"|"$/g, '') : '');
+
+            if (!name || !email) {
+                console.warn("Skipping invalid row:", row);
+                failCount++;
+                continue;
+            }
+
+            // Check duplicate email locally first
+            if (leads.some(l => l.email.toLowerCase() === email.toLowerCase())) {
+                console.warn("Duplicate email:", email);
+                failCount++;
+                continue;
+            }
+
+            const leadData = {
+                id: crypto.randomUUID(),
+                name: name,
+                email: email,
+                phone: phone || '',
+                website: website || '',
+                company: company || '',
+                country: country || '',
+                city: city || '',
+                socials: '[]',
+                nature: nature || 'Client',
+                workNature: '',
+                status: 'New',
+                nextFollowUp: '',
+                notes: '[]',
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                await db.execute({
+                    sql: `INSERT INTO leads (id, name, email, phone, website, company, country, city, socials, nature, work_nature, status, next_follow_up, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [leadData.id, leadData.name, leadData.email, leadData.phone, leadData.website, leadData.company, leadData.country, leadData.city, leadData.socials, leadData.nature, leadData.workNature, leadData.status, leadData.nextFollowUp, leadData.notes, leadData.createdAt]
+                });
+                successCount++;
+            } catch (error) {
+                console.error("Import Error:", error);
+                failCount++;
+            }
+        }
+
+        alert(`Import Complete!\nSuccess: ${successCount}\nFailed/Duplicate: ${failCount}`);
+        csvInput.value = ''; // Reset input
+        await renderLeads();
+        updateStats();
+    };
+    reader.readAsText(file);
 }
 
 async function syncReplies() {
