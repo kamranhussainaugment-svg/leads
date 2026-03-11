@@ -11,19 +11,43 @@ const db = createClient({
 
 const DEFAULT_SENDER_NAME = 'Zerionix Systems';
 const DEFAULT_SENDER_EMAIL = 'hello@zerionixsystems.com';
-const DEFAULT_EMAIL_TEMPLATE_SETTINGS = {
-    logoUrl: '',
+const LEGACY_EMAIL_TEMPLATE_SETTINGS = {
     badgeText: 'Premium Brand Communication',
     headline: `A polished message from ${DEFAULT_SENDER_NAME}`,
     introText: 'Professionally presented outreach with a refined dark theme, modern brand accents, and clear, readable content designed to leave a strong first impression.',
     footerText: `${DEFAULT_SENDER_NAME} · Strategic systems, modern communication, and premium presentation.`
 };
+const DEFAULT_EMAIL_TEMPLATE_SETTINGS = {
+    logoUrl: '',
+    badgeText: 'Agency Partnership Outreach',
+    headline: '',
+    introText: '',
+    footerText: 'zerionixsystems.com'
+};
 
 function normalizeEmailTemplateSettings(settings = {}) {
-    return {
+    const normalized = {
         ...DEFAULT_EMAIL_TEMPLATE_SETTINGS,
         ...(settings || {})
     };
+
+    if (normalized.badgeText === LEGACY_EMAIL_TEMPLATE_SETTINGS.badgeText) {
+        normalized.badgeText = DEFAULT_EMAIL_TEMPLATE_SETTINGS.badgeText;
+    }
+
+    if (normalized.headline === LEGACY_EMAIL_TEMPLATE_SETTINGS.headline) {
+        normalized.headline = DEFAULT_EMAIL_TEMPLATE_SETTINGS.headline;
+    }
+
+    if (normalized.introText === LEGACY_EMAIL_TEMPLATE_SETTINGS.introText) {
+        normalized.introText = DEFAULT_EMAIL_TEMPLATE_SETTINGS.introText;
+    }
+
+    if (normalized.footerText === LEGACY_EMAIL_TEMPLATE_SETTINGS.footerText) {
+        normalized.footerText = DEFAULT_EMAIL_TEMPLATE_SETTINGS.footerText;
+    }
+
+    return normalized;
 }
 
 function parseEmailTemplateSettings(rawSettings) {
@@ -298,14 +322,15 @@ function buildEmailMessageMarkup(message) {
 }
 
 function buildEmailTextContent(message, senderName, senderEmail) {
+    const effectiveSenderName = senderName || DEFAULT_SENDER_NAME;
+    const effectiveSenderEmail = senderEmail || DEFAULT_SENDER_EMAIL;
     const footerLines = [
         '',
-        '—',
-        senderName || DEFAULT_SENDER_NAME,
-        DEFAULT_SENDER_NAME
+        'Best regards,',
+        effectiveSenderName,
+        effectiveSenderEmail,
+        'zerionixsystems.com'
     ];
-
-    if (senderEmail) footerLines.push(senderEmail);
 
     return `${message.trim()}\n${footerLines.join('\n')}`;
 }
@@ -361,13 +386,21 @@ function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail, te
     const headline = escapeHtml(applyLeadPlaceholders(normalizedTemplateSettings.headline, lead));
     const introText = escapeHtml(applyLeadPlaceholders(normalizedTemplateSettings.introText, lead));
     const footerText = escapeHtml(applyLeadPlaceholders(normalizedTemplateSettings.footerText, lead));
+    const badgeMarkup = badgeText
+        ? `<div style="margin-top: 18px; display: inline-block; padding: 6px 12px; border-radius: 999px; background-color: rgba(99, 102, 241, 0.12); color: #c7d2fe; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">${badgeText}</div>`
+        : '';
+    const headlineMarkup = headline
+        ? `<div style="margin-top: 14px; font-size: 24px; line-height: 1.3; font-weight: 700; color: #f8fafc; letter-spacing: -0.02em;">${headline}</div>`
+        : '';
+    const introMarkup = introText
+        ? `<div style="margin-top: 10px; font-size: 15px; line-height: 1.7; color: #cbd5e1; max-width: 520px;">${introText}</div>`
+        : '';
     const preheader = escapeHtml(
         message.replace(/\s+/g, ' ').trim().slice(0, 140) || `A message from ${DEFAULT_SENDER_NAME}`
     );
     const messageMarkup = buildEmailMessageMarkup(message);
-    const recipientLabel = escapeHtml(lead?.company?.trim() || lead?.name?.trim() || 'your team');
     const replyFrom = escapeHtml(senderName || DEFAULT_SENDER_NAME);
-    const replyEmail = senderEmail ? ` · ${escapeHtml(senderEmail)}` : '';
+    const replyEmail = escapeHtml(senderEmail || DEFAULT_SENDER_EMAIL);
 
     return `
 <!DOCTYPE html>
@@ -387,13 +420,14 @@ function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail, te
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 640px; width: 100%;">
                     <tr>
                         <td style="padding-bottom: 18px;">
-                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 24px; background-color: #0f172a; background-image: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(6,182,212,0.1), rgba(139,92,246,0.12));">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 20px; background-color: #0f172a; background-image: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(6,182,212,0.08), rgba(139,92,246,0.08));">
                                 <tr>
-                                    <td style="padding: 28px 28px 26px;">
+                                    <td style="padding: 24px 24px 22px;">
                                         ${buildZerionixLogoMarkup(normalizedTemplateSettings.logoUrl)}
-                                        <div style="margin-top: 22px; display: inline-block; padding: 8px 14px; border-radius: 999px; background-color: rgba(99, 102, 241, 0.16); color: #c7d2fe; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">${badgeText}</div>
-                                        <div style="margin-top: 18px; font-size: 28px; line-height: 1.25; font-weight: 700; color: #f8fafc; letter-spacing: -0.03em;">${headline}</div>
-                                        <div style="margin-top: 12px; font-size: 15px; line-height: 1.7; color: #cbd5e1; max-width: 520px;">${introText}</div>
+                                        <div style="margin-top: 12px; font-size: 12px; line-height: 1.6; color: #94a3b8;">zerionixsystems.com</div>
+                                        ${badgeMarkup}
+                                        ${headlineMarkup}
+                                        ${introMarkup}
                                     </td>
                                 </tr>
                             </table>
@@ -402,20 +436,21 @@ function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail, te
 
                     <tr>
                         <td>
-                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 24px; background-color: #0f172a;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 20px; background-color: #0f172a;">
                                 <tr>
-                                    <td style="padding: 30px 28px 12px;">
-                                        <div style="font-size: 12px; line-height: 1; font-weight: 700; color: #22d3ee; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 16px;">Prepared for ${recipientLabel}</div>
+                                    <td style="padding: 28px 24px 12px;">
                                         ${messageMarkup}
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 10px 28px 28px;">
-                                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 18px; background-color: #0b1223;">
+                                    <td style="padding: 6px 24px 24px;">
+                                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 16px; background-color: #0b1223;">
                                             <tr>
                                                 <td style="padding: 18px 20px;">
-                                                    <div style="font-size: 14px; line-height: 1.6; font-weight: 600; color: #f1f5f9;">Reply directly to continue the conversation.</div>
-                                                    <div style="margin-top: 6px; font-size: 13px; line-height: 1.6; color: #94a3b8;">Sent by ${replyFrom}${replyEmail}</div>
+                                                    <div style="font-size: 14px; line-height: 1.7; font-weight: 600; color: #f1f5f9;">Best regards,</div>
+                                                    <div style="margin-top: 6px; font-size: 14px; line-height: 1.7; color: #cbd5e1;">${replyFrom}</div>
+                                                    <div style="font-size: 13px; line-height: 1.7; color: #94a3b8;">${replyEmail}</div>
+                                                    <div style="font-size: 13px; line-height: 1.7; color: #94a3b8;">zerionixsystems.com</div>
                                                 </td>
                                             </tr>
                                         </table>
