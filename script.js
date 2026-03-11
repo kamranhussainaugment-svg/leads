@@ -9,6 +9,9 @@ const db = createClient({
     authToken: TURSO_AUTH_TOKEN
 });
 
+const DEFAULT_SENDER_NAME = 'Zerionix Systems';
+const DEFAULT_SENDER_EMAIL = 'hello@zerionixsystems.com';
+
 // Initialize DB
 async function initDB() {
     try {
@@ -161,7 +164,11 @@ const closedWonEl = document.getElementById('closedWon');
 // State
 let leads = []; // Will be populated from DB
 let campaigns = JSON.parse(localStorage.getItem('campaigns')) || [];
-let emailSettings = JSON.parse(localStorage.getItem('emailSettings')) || {};
+let emailSettings = {
+    senderName: DEFAULT_SENDER_NAME,
+    senderEmail: DEFAULT_SENDER_EMAIL,
+    ...(JSON.parse(localStorage.getItem('emailSettings')) || {})
+};
 let isEditing = false;
 let currentViewLeadId = null;
 
@@ -216,6 +223,154 @@ function openCampaignModal() {
 
 function closeCampaignModalFn() {
     campaignModal.style.display = 'none';
+}
+
+function applyLeadPlaceholders(template, lead) {
+    if (!template) return '';
+
+    const values = {
+        name: lead?.name?.trim() || 'there',
+        company: lead?.company?.trim() || ''
+    };
+
+    return Object.entries(values).reduce((output, [key, value]) => {
+        return output.replace(new RegExp(`\\{${key}\\}`, 'gi'), value);
+    }, template);
+}
+
+function escapeHtml(value = '') {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function buildEmailMessageMarkup(message) {
+    const safeMessage = escapeHtml(message).trim();
+
+    if (!safeMessage) {
+        return '<p style="margin: 0; font-size: 16px; line-height: 1.8; color: #cbd5e1;">We wanted to reach out from Zerionix Systems.</p>';
+    }
+
+    return safeMessage
+        .split(/\n\s*\n/)
+        .map(paragraph => paragraph.replace(/\n/g, '<br>'))
+        .map(paragraph => `<p style="margin: 0 0 18px; font-size: 16px; line-height: 1.8; color: #cbd5e1;">${paragraph}</p>`)
+        .join('');
+}
+
+function buildEmailTextContent(message, senderName, senderEmail) {
+    const footerLines = [
+        '',
+        '—',
+        senderName || DEFAULT_SENDER_NAME,
+        DEFAULT_SENDER_NAME
+    ];
+
+    if (senderEmail) footerLines.push(senderEmail);
+
+    return `${message.trim()}\n${footerLines.join('\n')}`;
+}
+
+function buildZerionixLogoMarkup() {
+    return `
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+                <td style="padding-right: 12px; vertical-align: middle;">
+                    <svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+                        <rect x="4" y="4" width="40" height="40" rx="14" fill="#0f172a" fill-opacity="0.82" stroke="#334155"></rect>
+                        <path d="M15.5 16h17L18.5 32h17" fill="none" stroke="#818cf8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                        <path d="M34.5 12.5c3.2 1.4 5.5 4.6 5.5 8.3 0 5.1-4.1 9.2-9.2 9.2" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round"></path>
+                        <circle cx="35.2" cy="12.8" r="2.8" fill="#22d3ee"></circle>
+                    </svg>
+                </td>
+                <td style="vertical-align: middle;">
+                    <div style="font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 24px; font-weight: 700; line-height: 1; color: #f8fafc; letter-spacing: -0.02em;">Zerionix</div>
+                    <div style="font-family: Inter, Segoe UI, Arial, sans-serif; font-size: 10px; font-weight: 600; line-height: 1; color: #94a3b8; letter-spacing: 0.35em; text-transform: uppercase; margin-top: 8px;">Systems</div>
+                </td>
+            </tr>
+        </table>
+    `;
+}
+
+function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail }) {
+    const preheader = escapeHtml(
+        message.replace(/\s+/g, ' ').trim().slice(0, 140) || `A message from ${DEFAULT_SENDER_NAME}`
+    );
+    const messageMarkup = buildEmailMessageMarkup(message);
+    const recipientLabel = escapeHtml(lead?.company?.trim() || lead?.name?.trim() || 'your team');
+    const replyFrom = escapeHtml(senderName || DEFAULT_SENDER_NAME);
+    const replyEmail = senderEmail ? ` · ${escapeHtml(senderEmail)}` : '';
+
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>${DEFAULT_SENDER_NAME}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #020617; font-family: Inter, Segoe UI, Arial, sans-serif;">
+    <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; mso-hide: all;">${preheader}</div>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; background-color: #020617; margin: 0; padding: 0;">
+        <tr>
+            <td align="center" style="padding: 32px 16px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 640px; width: 100%;">
+                    <tr>
+                        <td style="padding-bottom: 18px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 24px; background-color: #0f172a; background-image: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(6,182,212,0.1), rgba(139,92,246,0.12));">
+                                <tr>
+                                    <td style="padding: 28px 28px 26px;">
+                                        ${buildZerionixLogoMarkup()}
+                                        <div style="margin-top: 22px; display: inline-block; padding: 8px 14px; border-radius: 999px; background-color: rgba(99, 102, 241, 0.16); color: #c7d2fe; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">Premium Brand Communication</div>
+                                        <div style="margin-top: 18px; font-size: 28px; line-height: 1.25; font-weight: 700; color: #f8fafc; letter-spacing: -0.03em;">A polished message from ${DEFAULT_SENDER_NAME}</div>
+                                        <div style="margin-top: 12px; font-size: 15px; line-height: 1.7; color: #cbd5e1; max-width: 520px;">Professionally presented outreach with a refined dark theme, modern brand accents, and clear, readable content designed to leave a strong first impression.</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 24px; background-color: #0f172a;">
+                                <tr>
+                                    <td style="padding: 30px 28px 12px;">
+                                        <div style="font-size: 12px; line-height: 1; font-weight: 700; color: #22d3ee; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 16px;">Prepared for ${recipientLabel}</div>
+                                        ${messageMarkup}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 10px 28px 28px;">
+                                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 18px; background-color: #0b1223;">
+                                            <tr>
+                                                <td style="padding: 18px 20px;">
+                                                    <div style="font-size: 14px; line-height: 1.6; font-weight: 600; color: #f1f5f9;">Reply directly to continue the conversation.</div>
+                                                    <div style="margin-top: 6px; font-size: 13px; line-height: 1.6; color: #94a3b8;">Sent by ${replyFrom}${replyEmail}</div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 18px 10px 0; text-align: center; font-size: 12px; line-height: 1.7; color: #94a3b8;">
+                            ${DEFAULT_SENDER_NAME} · Strategic systems, modern communication, and premium presentation.
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
 }
 
 window.addEventListener('click', (e) => {
@@ -395,14 +550,19 @@ async function sendCampaign() {
         statusText.textContent = `Sending to ${lead.email} (${i + 1}/${recipients.length})...`;
         
         // Prepare content
-        const subject = campaignData.subjectTemplate
-            .replace('{name}', lead.name)
-            .replace('{company}', lead.company);
-            
-        const htmlContent = document.getElementById('emailBody').value
-            .replace('{name}', lead.name)
-            .replace('{company}', lead.company)
-            .replace(/\n/g, '<br>');
+        const subject = applyLeadPlaceholders(campaignData.subjectTemplate, lead);
+        const personalizedMessage = applyLeadPlaceholders(document.getElementById('emailBody').value, lead);
+        const htmlContent = buildCampaignEmailTemplate({
+            lead,
+            message: personalizedMessage,
+            senderName: emailSettings.senderName,
+            senderEmail: emailSettings.senderEmail
+        });
+        const textContent = buildEmailTextContent(
+            personalizedMessage,
+            emailSettings.senderName,
+            emailSettings.senderEmail
+        );
 
         // Call Backend API
         try {
@@ -417,6 +577,7 @@ async function sendCampaign() {
                     to: lead.email,
                     subject: subject,
                     htmlContent: htmlContent,
+                    textContent: textContent,
                     senderName: emailSettings.senderName,
                     senderEmail: emailSettings.senderEmail,
                     tag: campaignData.id // Pass Campaign ID as tag for tracking
@@ -621,26 +782,27 @@ async function loadSettings() {
         if (rs.rows.length > 0) {
             const row = rs.rows[0];
             emailSettings = {
+                ...emailSettings,
                 apiKey: row.api_key,
                 smtpUser: row.smtp_user,
                 smtpKey: row.smtp_key,
                 imapHost: row.imap_host,
                 imapPort: row.imap_port,
-                senderEmail: row.sender_email,
-                senderName: row.sender_name
+                senderEmail: row.sender_email || DEFAULT_SENDER_EMAIL,
+                senderName: row.sender_name || DEFAULT_SENDER_NAME
             };
             console.log("Email Settings loaded from Turso database");
-            
-            // Update UI if elements exist
-            if (document.getElementById('smtpUser')) {
-                document.getElementById('apiKey').value = emailSettings.apiKey || '';
-                document.getElementById('smtpUser').value = emailSettings.smtpUser || '';
-                document.getElementById('smtpKey').value = emailSettings.smtpKey || '';
-                document.getElementById('imapHost').value = emailSettings.imapHost || 'imap.brevo.com';
-                document.getElementById('imapPort').value = emailSettings.imapPort || '993';
-                document.getElementById('senderEmail').value = emailSettings.senderEmail || '';
-                document.getElementById('senderName').value = emailSettings.senderName || '';
-            }
+        }
+
+        // Update UI if elements exist
+        if (document.getElementById('smtpUser')) {
+            document.getElementById('apiKey').value = emailSettings.apiKey || '';
+            document.getElementById('smtpUser').value = emailSettings.smtpUser || '';
+            document.getElementById('smtpKey').value = emailSettings.smtpKey || '';
+            document.getElementById('imapHost').value = emailSettings.imapHost || 'imap.brevo.com';
+            document.getElementById('imapPort').value = emailSettings.imapPort || '993';
+            document.getElementById('senderEmail').value = emailSettings.senderEmail || DEFAULT_SENDER_EMAIL;
+            document.getElementById('senderName').value = emailSettings.senderName || DEFAULT_SENDER_NAME;
         }
     } catch (error) {
         console.error("Load Settings Error:", error);
@@ -654,8 +816,8 @@ async function saveSettings() {
         smtpKey: document.getElementById('smtpKey').value,
         imapHost: document.getElementById('imapHost').value,
         imapPort: document.getElementById('imapPort').value,
-        senderEmail: document.getElementById('senderEmail').value,
-        senderName: document.getElementById('senderName').value
+        senderEmail: document.getElementById('senderEmail').value.trim() || DEFAULT_SENDER_EMAIL,
+        senderName: document.getElementById('senderName').value.trim() || DEFAULT_SENDER_NAME
     };
 
     try {

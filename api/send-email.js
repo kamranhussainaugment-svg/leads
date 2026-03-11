@@ -5,7 +5,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { smtpUser, smtpKey, to, subject, htmlContent, senderName, senderEmail, tag } = req.body;
+    const { smtpUser, smtpKey, to, subject, htmlContent, textContent, senderName, senderEmail, tag } = req.body;
 
     if (!smtpUser || !smtpKey || !to || !subject || !htmlContent || !senderEmail) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -23,10 +23,11 @@ export default async function handler(req, res) {
         });
 
         const mailOptions = {
-            from: `"${senderName || 'Lead Manager'}" <${senderEmail}>`, // sender address
+            from: `"${senderName || 'Zerionix Systems'}" <${senderEmail}>`, // sender address
             to: to, // list of receivers
             subject: subject, // Subject line
             html: htmlContent, // html body
+            text: textContent || undefined,
         };
 
         if (tag) {
