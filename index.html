@@ -169,6 +169,41 @@
                             <label for="senderName">Sender Name</label>
                             <input type="text" id="senderName" placeholder="Zerionix Systems" value="Zerionix Systems">
                         </div>
+
+                        <div class="settings-section">
+                            <h4>Email Template Branding</h4>
+                            <p class="text-muted" style="font-size: 13px; margin-bottom: 15px;">Edit the branded wrapper used for every campaign email. Your campaign message is still written in the campaign composer.</p>
+
+                            <div class="template-settings-grid">
+                                <div class="form-group">
+                                    <label for="templateLogoUrl">Logo Image URL (Optional)</label>
+                                    <input type="url" id="templateLogoUrl" placeholder="https://yourcdn.com/zerionix-logo.png">
+                                    <small class="text-muted">Leave blank to use the built-in Zerionix logo. Use a public `https://` image URL for email-safe rendering.</small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="templateBadgeText">Badge Label</label>
+                                    <input type="text" id="templateBadgeText" placeholder="Premium Brand Communication">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="templateHeadline">Template Headline</label>
+                                <input type="text" id="templateHeadline" placeholder="A polished message from Zerionix Systems">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="templateIntroText">Intro Text</label>
+                                <textarea id="templateIntroText" rows="4" placeholder="Explain the tone and purpose of your branded email template."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="templateFooterText">Footer Text</label>
+                                <textarea id="templateFooterText" rows="3" placeholder="Zerionix Systems · Strategic systems, modern communication, and premium presentation."></textarea>
+                                <small class="text-muted">You can use `{name}` and `{company}` in these template fields if you want dynamic text.</small>
+                            </div>
+                        </div>
+
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">Save Settings</button>
                         </div>

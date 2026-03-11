@@ -11,6 +11,35 @@ const db = createClient({
 
 const DEFAULT_SENDER_NAME = 'Zerionix Systems';
 const DEFAULT_SENDER_EMAIL = 'hello@zerionixsystems.com';
+const DEFAULT_EMAIL_TEMPLATE_SETTINGS = {
+    logoUrl: '',
+    badgeText: 'Premium Brand Communication',
+    headline: `A polished message from ${DEFAULT_SENDER_NAME}`,
+    introText: 'Professionally presented outreach with a refined dark theme, modern brand accents, and clear, readable content designed to leave a strong first impression.',
+    footerText: `${DEFAULT_SENDER_NAME} · Strategic systems, modern communication, and premium presentation.`
+};
+
+function normalizeEmailTemplateSettings(settings = {}) {
+    return {
+        ...DEFAULT_EMAIL_TEMPLATE_SETTINGS,
+        ...(settings || {})
+    };
+}
+
+function parseEmailTemplateSettings(rawSettings) {
+    if (!rawSettings) return normalizeEmailTemplateSettings();
+
+    if (typeof rawSettings === 'object') {
+        return normalizeEmailTemplateSettings(rawSettings);
+    }
+
+    try {
+        return normalizeEmailTemplateSettings(JSON.parse(rawSettings));
+    } catch (error) {
+        console.warn('Failed to parse email template settings, using defaults.', error);
+        return normalizeEmailTemplateSettings();
+    }
+}
 
 // Initialize DB
 async function initDB() {
@@ -59,7 +88,8 @@ async function initDB() {
                 smtp_user TEXT,
                 smtp_key TEXT,
                 imap_host TEXT,
-                imap_port TEXT
+                imap_port TEXT,
+                email_template TEXT
             )
         `);
         
@@ -96,6 +126,9 @@ async function initDB() {
         } catch (e) {}
         try {
             await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT");
+        } catch (e) {}
+        try {
+            await db.execute("ALTER TABLE settings ADD COLUMN email_template TEXT");
         } catch (e) {}
  
         console.log("Database initialized");
@@ -164,10 +197,13 @@ const closedWonEl = document.getElementById('closedWon');
 // State
 let leads = []; // Will be populated from DB
 let campaigns = JSON.parse(localStorage.getItem('campaigns')) || [];
+const storedEmailSettings = JSON.parse(localStorage.getItem('emailSettings')) || {};
 let emailSettings = {
     senderName: DEFAULT_SENDER_NAME,
     senderEmail: DEFAULT_SENDER_EMAIL,
-    ...(JSON.parse(localStorage.getItem('emailSettings')) || {})
+    templateSettings: normalizeEmailTemplateSettings(),
+    ...storedEmailSettings,
+    templateSettings: parseEmailTemplateSettings(storedEmailSettings.templateSettings)
 };
 let isEditing = false;
 let currentViewLeadId = null;
@@ -274,7 +310,31 @@ function buildEmailTextContent(message, senderName, senderEmail) {
     return `${message.trim()}\n${footerLines.join('\n')}`;
 }
 
-function buildZerionixLogoMarkup() {
+function sanitizeHttpUrl(value = '') {
+    const trimmed = String(value).trim();
+    if (!trimmed) return '';
+
+    try {
+        const parsed = new URL(trimmed);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : '';
+    } catch {
+        return '';
+    }
+}
+
+function buildZerionixLogoMarkup(logoUrl = '') {
+    const safeLogoUrl = sanitizeHttpUrl(logoUrl);
+
+    if (safeLogoUrl) {
+        return `
+            <img
+                src="${escapeHtml(safeLogoUrl)}"
+                alt="${DEFAULT_SENDER_NAME} logo"
+                style="display: block; max-width: 220px; width: auto; max-height: 56px; height: auto;"
+            >
+        `;
+    }
+
     return `
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr>
@@ -295,7 +355,12 @@ function buildZerionixLogoMarkup() {
     `;
 }
 
-function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail }) {
+function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail, templateSettings }) {
+    const normalizedTemplateSettings = normalizeEmailTemplateSettings(templateSettings);
+    const badgeText = escapeHtml(applyLeadPlaceholders(normalizedTemplateSettings.badgeText, lead));
+    const headline = escapeHtml(applyLeadPlaceholders(normalizedTemplateSettings.headline, lead));
+    const introText = escapeHtml(applyLeadPlaceholders(normalizedTemplateSettings.introText, lead));
+    const footerText = escapeHtml(applyLeadPlaceholders(normalizedTemplateSettings.footerText, lead));
     const preheader = escapeHtml(
         message.replace(/\s+/g, ' ').trim().slice(0, 140) || `A message from ${DEFAULT_SENDER_NAME}`
     );
@@ -325,10 +390,10 @@ function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail }) 
                             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 24px; background-color: #0f172a; background-image: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(6,182,212,0.1), rgba(139,92,246,0.12));">
                                 <tr>
                                     <td style="padding: 28px 28px 26px;">
-                                        ${buildZerionixLogoMarkup()}
-                                        <div style="margin-top: 22px; display: inline-block; padding: 8px 14px; border-radius: 999px; background-color: rgba(99, 102, 241, 0.16); color: #c7d2fe; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">Premium Brand Communication</div>
-                                        <div style="margin-top: 18px; font-size: 28px; line-height: 1.25; font-weight: 700; color: #f8fafc; letter-spacing: -0.03em;">A polished message from ${DEFAULT_SENDER_NAME}</div>
-                                        <div style="margin-top: 12px; font-size: 15px; line-height: 1.7; color: #cbd5e1; max-width: 520px;">Professionally presented outreach with a refined dark theme, modern brand accents, and clear, readable content designed to leave a strong first impression.</div>
+                                        ${buildZerionixLogoMarkup(normalizedTemplateSettings.logoUrl)}
+                                        <div style="margin-top: 22px; display: inline-block; padding: 8px 14px; border-radius: 999px; background-color: rgba(99, 102, 241, 0.16); color: #c7d2fe; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;">${badgeText}</div>
+                                        <div style="margin-top: 18px; font-size: 28px; line-height: 1.25; font-weight: 700; color: #f8fafc; letter-spacing: -0.03em;">${headline}</div>
+                                        <div style="margin-top: 12px; font-size: 15px; line-height: 1.7; color: #cbd5e1; max-width: 520px;">${introText}</div>
                                     </td>
                                 </tr>
                             </table>
@@ -362,7 +427,7 @@ function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail }) 
 
                     <tr>
                         <td style="padding: 18px 10px 0; text-align: center; font-size: 12px; line-height: 1.7; color: #94a3b8;">
-                            ${DEFAULT_SENDER_NAME} · Strategic systems, modern communication, and premium presentation.
+                            ${footerText}
                         </td>
                     </tr>
                 </table>
@@ -556,7 +621,8 @@ async function sendCampaign() {
             lead,
             message: personalizedMessage,
             senderName: emailSettings.senderName,
-            senderEmail: emailSettings.senderEmail
+            senderEmail: emailSettings.senderEmail,
+            templateSettings: emailSettings.templateSettings
         });
         const textContent = buildEmailTextContent(
             personalizedMessage,
@@ -789,7 +855,8 @@ async function loadSettings() {
                 imapHost: row.imap_host,
                 imapPort: row.imap_port,
                 senderEmail: row.sender_email || DEFAULT_SENDER_EMAIL,
-                senderName: row.sender_name || DEFAULT_SENDER_NAME
+                senderName: row.sender_name || DEFAULT_SENDER_NAME,
+                templateSettings: parseEmailTemplateSettings(row.email_template)
             };
             console.log("Email Settings loaded from Turso database");
         }
@@ -803,6 +870,11 @@ async function loadSettings() {
             document.getElementById('imapPort').value = emailSettings.imapPort || '993';
             document.getElementById('senderEmail').value = emailSettings.senderEmail || DEFAULT_SENDER_EMAIL;
             document.getElementById('senderName').value = emailSettings.senderName || DEFAULT_SENDER_NAME;
+            document.getElementById('templateLogoUrl').value = emailSettings.templateSettings.logoUrl || '';
+            document.getElementById('templateBadgeText').value = emailSettings.templateSettings.badgeText || DEFAULT_EMAIL_TEMPLATE_SETTINGS.badgeText;
+            document.getElementById('templateHeadline').value = emailSettings.templateSettings.headline || DEFAULT_EMAIL_TEMPLATE_SETTINGS.headline;
+            document.getElementById('templateIntroText').value = emailSettings.templateSettings.introText || DEFAULT_EMAIL_TEMPLATE_SETTINGS.introText;
+            document.getElementById('templateFooterText').value = emailSettings.templateSettings.footerText || DEFAULT_EMAIL_TEMPLATE_SETTINGS.footerText;
         }
     } catch (error) {
         console.error("Load Settings Error:", error);
@@ -817,7 +889,14 @@ async function saveSettings() {
         imapHost: document.getElementById('imapHost').value,
         imapPort: document.getElementById('imapPort').value,
         senderEmail: document.getElementById('senderEmail').value.trim() || DEFAULT_SENDER_EMAIL,
-        senderName: document.getElementById('senderName').value.trim() || DEFAULT_SENDER_NAME
+        senderName: document.getElementById('senderName').value.trim() || DEFAULT_SENDER_NAME,
+        templateSettings: normalizeEmailTemplateSettings({
+            logoUrl: document.getElementById('templateLogoUrl').value.trim(),
+            badgeText: document.getElementById('templateBadgeText').value.trim() || DEFAULT_EMAIL_TEMPLATE_SETTINGS.badgeText,
+            headline: document.getElementById('templateHeadline').value.trim() || DEFAULT_EMAIL_TEMPLATE_SETTINGS.headline,
+            introText: document.getElementById('templateIntroText').value.trim() || DEFAULT_EMAIL_TEMPLATE_SETTINGS.introText,
+            footerText: document.getElementById('templateFooterText').value.trim() || DEFAULT_EMAIL_TEMPLATE_SETTINGS.footerText
+        })
     };
 
     try {
@@ -826,8 +905,8 @@ async function saveSettings() {
         if (check.rows.length > 0) {
             try {
                 await db.execute({
-                    sql: "UPDATE settings SET api_key=?, smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
-                    args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                    sql: "UPDATE settings SET api_key=?, smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=?, email_template=? WHERE id='default'",
+                    args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName, JSON.stringify(newSettings.templateSettings)]
                 });
             } catch (updateError) {
                 // If update fails due to missing column, try to migrate and retry
@@ -837,11 +916,12 @@ async function saveSettings() {
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN email_template TEXT"); } catch(e) {}
                     
                     // Retry update
                     await db.execute({
-                        sql: "UPDATE settings SET api_key=?, smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=? WHERE id='default'",
-                        args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                        sql: "UPDATE settings SET api_key=?, smtp_user=?, smtp_key=?, imap_host=?, imap_port=?, sender_email=?, sender_name=?, email_template=? WHERE id='default'",
+                        args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName, JSON.stringify(newSettings.templateSettings)]
                     });
                 } else {
                     throw updateError;
@@ -851,8 +931,8 @@ async function saveSettings() {
             // Same check for INSERT
              try {
                 await db.execute({
-                    sql: "INSERT INTO settings (id, api_key, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?, ?)",
-                    args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                    sql: "INSERT INTO settings (id, api_key, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name, email_template) VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?)",
+                    args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName, JSON.stringify(newSettings.templateSettings)]
                 });
             } catch (insertError) {
                 if (insertError.message.includes("no such column")) {
@@ -862,11 +942,12 @@ async function saveSettings() {
                     try { await db.execute("ALTER TABLE settings ADD COLUMN smtp_key TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN imap_host TEXT"); } catch(e) {}
                     try { await db.execute("ALTER TABLE settings ADD COLUMN imap_port TEXT"); } catch(e) {}
+                    try { await db.execute("ALTER TABLE settings ADD COLUMN email_template TEXT"); } catch(e) {}
                     
                     // Retry insert
                     await db.execute({
-                        sql: "INSERT INTO settings (id, api_key, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name) VALUES ('default', ?, ?, ?, ?, ?, ?, ?)",
-                        args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName]
+                        sql: "INSERT INTO settings (id, api_key, smtp_user, smtp_key, imap_host, imap_port, sender_email, sender_name, email_template) VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?)",
+                        args: [newSettings.apiKey, newSettings.smtpUser, newSettings.smtpKey, newSettings.imapHost, newSettings.imapPort, newSettings.senderEmail, newSettings.senderName, JSON.stringify(newSettings.templateSettings)]
                     });
                 } else {
                     throw insertError;
