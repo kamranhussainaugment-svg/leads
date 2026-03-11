@@ -419,10 +419,10 @@ function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail, te
             <td align="center" style="padding: 32px 16px;">
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 640px; width: 100%;">
                     <tr>
-                        <td style="padding-bottom: 18px;">
-                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 20px; background-color: #0f172a; background-image: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(6,182,212,0.08), rgba(139,92,246,0.08));">
+                        <td>
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 20px; background-color: #0f172a; background-image: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.07), rgba(139,92,246,0.07)); box-shadow: 0 18px 40px rgba(2, 6, 23, 0.28); overflow: hidden;">
                                 <tr>
-                                    <td style="padding: 24px 24px 22px;">
+                                    <td style="padding: 24px 24px 18px;">
                                         ${buildZerionixLogoMarkup(normalizedTemplateSettings.logoUrl)}
                                         <div style="margin-top: 12px; font-size: 12px; line-height: 1.6; color: #94a3b8;">zerionixsystems.com</div>
                                         ${badgeMarkup}
@@ -430,39 +430,31 @@ function buildCampaignEmailTemplate({ lead, message, senderName, senderEmail, te
                                         ${introMarkup}
                                     </td>
                                 </tr>
-                            </table>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td>
-                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 20px; background-color: #0f172a;">
                                 <tr>
-                                    <td style="padding: 28px 24px 12px;">
+                                    <td style="padding: 0 24px;">
+                                        <div style="height: 1px; background-color: rgba(148, 163, 184, 0.18);"></div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 24px 24px 8px;">
                                         ${messageMarkup}
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 6px 24px 24px;">
-                                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width: 100%; border: 1px solid #334155; border-radius: 16px; background-color: #0b1223;">
-                                            <tr>
-                                                <td style="padding: 18px 20px;">
-                                                    <div style="font-size: 14px; line-height: 1.7; font-weight: 600; color: #f1f5f9;">Best regards,</div>
-                                                    <div style="margin-top: 6px; font-size: 14px; line-height: 1.7; color: #cbd5e1;">${replyFrom}</div>
-                                                    <div style="font-size: 13px; line-height: 1.7; color: #94a3b8;">${replyEmail}</div>
-                                                    <div style="font-size: 13px; line-height: 1.7; color: #94a3b8;">zerionixsystems.com</div>
-                                                </td>
-                                            </tr>
-                                        </table>
+                                    <td style="padding: 8px 24px 0;">
+                                        <div style="font-size: 14px; line-height: 1.8; font-weight: 600; color: #f1f5f9;">Best regards,</div>
+                                        <div style="margin-top: 6px; font-size: 14px; line-height: 1.8; color: #cbd5e1;">${replyFrom}</div>
+                                        <div style="font-size: 13px; line-height: 1.8; color: #94a3b8;">${replyEmail}</div>
+                                        <div style="font-size: 13px; line-height: 1.8; color: #94a3b8;">zerionixsystems.com</div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 20px 24px 24px;">
+                                        <div style="height: 1px; background-color: rgba(148, 163, 184, 0.18);"></div>
+                                        <div style="padding-top: 16px; text-align: center; font-size: 12px; line-height: 1.7; color: #94a3b8;">${footerText}</div>
                                     </td>
                                 </tr>
                             </table>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td style="padding: 18px 10px 0; text-align: center; font-size: 12px; line-height: 1.7; color: #94a3b8;">
-                            ${footerText}
                         </td>
                     </tr>
                 </table>
